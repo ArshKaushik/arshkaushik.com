@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# arshkaushik.com
 
-## Getting Started
+Personal portfolio for **Arsh Kaushik**, implemented from a Figma design.
 
-First, run the development server:
+## Tech stack
+
+- **Next.js 16** (App Router)
+- **TypeScript**
+- **Tailwind CSS v4** — CSS-first config via `@theme` in `globals.css` (no `tailwind.config` file)
+- **pnpm**
+- Fonts via `next/font`: **Instrument Serif** (display) + **Geist** (UI)
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm dev        # dev server at http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Other scripts:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm build      # production build
+pnpm start      # serve the production build
+pnpm lint       # ESLint
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Project structure
 
-## Learn More
+```
+src/
+├── app/                    # Routing (App Router) + global shell & styles
+│   ├── layout.tsx          #   sticky sidebar shell, fonts, wraps every page
+│   ├── page.tsx            #   home page — stacks the sections
+│   └── globals.css         #   Tailwind import, design tokens (@theme), custom utilities
+├── components/
+│   ├── layout/             #   Sidebar
+│   ├── sections/           #   Hero, CaseStudies, Footer (the page bands)
+│   └── ui/                 #   NavLink, Stat, CaseStudyCard (small reusable pieces)
+└── lib/
+    └── content.ts          # All page copy as data — edit here to change content
 
-To learn more about Next.js, take a look at the following resources:
+learn/                      # Deep-dive docs explaining non-trivial implementations
+public/                     # Static assets
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+**Mental model:** `app/` = pages & routing · `components/` = reusable building blocks · `lib/` = content/data · `learn/` = write-ups.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Notable implementation details
 
-## Deploy on Vercel
+- **Content-driven** — all copy lives in `src/lib/content.ts`; components render from it, so adding a case study or link is a data edit, not a layout edit.
+- **Design tokens** — colours and fonts are defined once in `globals.css` (`@theme`) and referenced everywhere (`bg-page`, `text-textPrimary`, etc.).
+- **Custom dashed hairlines** — the exact 10px/10px dashes from the design can't be done with `border-dashed` (the browser controls dash length), so they're painted with a small, composable background-gradient utility system. Full walkthrough in [`learn/dashed-borders.md`](learn/dashed-borders.md).
+- **Spring hover interactions** — the case-study cards and sidebar links animate with a spring easing (`--ease-spring-gentle`) sampled from Figma. Walkthrough in [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Status
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Desktop-only for now; responsive layouts are planned.
+
+## Learn docs
+
+The [`learn/`](learn/) folder documents the trickier pieces line-by-line — the reasoning behind the code and, where relevant, the debugging story:
+
+- [`learn/dashed-borders.md`](learn/dashed-borders.md) — the dashed-hairline system and the CSS variable-inheritance bug behind it.
+- [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md) — the spring-based hover reveal (title slide + description fade).
