@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+@theme {
+  --color-page: #f4f4f4;
+  --color-surface: #ffffff;
+  --color-textPrimary: #000000;
+  --color-textSecondaryPage: #6f6f6f;
+  --color-textSecondarySurface: #767676;
+  --color-stroke: #d8d8d8;
+
+  /* Font family variables are injected by next/font in layout.tsx */
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
+}
+
+/* ===========================================================================
+   Custom dashed hairlines — exact 10px dash / 10px gap
+   ===========================================================================
+   WHY THIS EXISTS
+   Tailwind's `border-dashed` compiles to CSS `border-style: dashed`. With a real
+   CSS border, the BROWSER decides how long each dash and gap is — there is no
+   CSS property to set them. So we cannot get the design's exact 10px/10px rhythm
+   from a border at all.
+
+   THE TRICK
+   Instead of a border, we PAINT the line as a background image using a
+   `repeating-linear-gradient`, where we DO control the sizes:
+
+     repeating-linear-gradient(to right, <color> 0 10px, transparent 10px 20px)
+
+   Read left→right: paint the stroke color from 0px to 10px (the dash), then
+   transparent from 10px to 20px (the gap), then repeat forever. Using
+   `to bottom` instead makes a vertical line (for left/right edges).
+   =========================================================================== */
+
+:root {
+  /* Two reusable line "segments". `--dash-h` is a horizontal line (used on the
+     TOP and BOTTOM edges); `--dash-v` is a vertical line (LEFT and RIGHT edges).
+     `var(--color-stroke)` reuses the same #d8d8d8 token as everything else. */
+  --dash-h: repeating-linear-gradient(to right, var(--color-stroke) 0 10px, transparent 10px 20px);
+  --dash-v: repeating-linear-gradient(to bottom, var(--color-stroke) 0 10px, transparent 10px 20px);
+}
+
+/* The base utility: add `dashed` to switch the effect ON, then add edge markers
+   (below) to choose WHICH edges get a line.
+
+   It declares four stacked background layers — one per edge. Each layer's image
+   comes from a CSS variable the markers set (`--dash-t` = top, `-b` = bottom,
+   `-l` = left, `-r` = right). If a marker isn't applied, the variable falls back
+   to `none`, so that edge simply draws nothing. The three lists below line up by
+   position — layer 1 = top, 2 = bottom, 3 = left, 4 = right:
+     • background-size pins each line to 1px thick (100%×1px = a full-width row,
+       1px×100% = a full-height column)
+     • background-position parks each line on its edge
+     • background-repeat: no-repeat stops the single 1px line from tiling.
+   Note: this is a background, so it coexists with `bg-surface`/`bg-page` (which
+   set background-COLOR) — the dashes paint on top, gaps reveal the color behind. */
+@utility dashed {
+  background-image: var(--dash-t, none), var(--dash-b, none), var(--dash-l, none), var(--dash-r, none);
+  background-position: top, bottom, left, right;
+  background-size: 100% 1px, 100% 1px, 1px 100%, 1px 100%;
+  background-repeat: no-repeat;
+}
+
+/* Edge markers. Each just sets its edge's variable, so they STACK: writing
+   `dashed dash-t dash-b` lights up top AND bottom. `dash-x` / `dash-y` are
+   shortcuts for both vertical / both horizontal edges (mirrors Tailwind's
+   `border-x` / `border-y`). */
+@utility dash-t { --dash-t: var(--dash-h); } /* top    */
+@utility dash-b { --dash-b: var(--dash-h); } /* bottom */
+@utility dash-l { --dash-l: var(--dash-v); } /* left   */
+@utility dash-r { --dash-r: var(--dash-v); } /* right  */
+@utility dash-x { --dash-l: var(--dash-v); --dash-r: var(--dash-v); } /* left + right */
+@utility dash-y { --dash-t: var(--dash-h); --dash-b: var(--dash-h); } /* top + bottom */
