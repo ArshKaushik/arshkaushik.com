@@ -11,6 +11,39 @@
   /* Font family variables are injected by next/font in layout.tsx */
   --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
+
+  /* ---------------------------------------------------------------------------
+     Spring easing for the case-study card hover (Figma "Gentle" preset)
+     ---------------------------------------------------------------------------
+     WHAT THIS IS
+     Figma's hover interaction uses a SPRING, not a normal ease. A spring is
+     physics, not a fixed curve: mass 1 / stiffness 100 / damping 15. Because
+     damping (friction) is low relative to stiffness (pull), the value shoots
+     toward its target, slightly OVERSHOOTS, then settles back — that tiny bounce
+     is the "gentle" feel. (The ~511ms "duration" is derived: it's how long the
+     spring takes to settle, not a number anyone typed.)
+
+     WHY linear(...) AND NOT cubic-bezier(...)
+     A cubic-bezier can only draw an S-curve that never passes its endpoints, so
+     it CANNOT bounce. `linear()` is a newer easing function that takes a list of
+     progress samples and connects them with straight segments — so it can trace
+     ANY shape, including overshoot. Figma sampled the spring into 51 points for
+     us. Notice the values climb PAST 1.0 (peak 1.0283) then dip back and settle
+     near 1 — that excursion above 1.0 is literally the overshoot/bounce.
+
+     Naming it `--ease-*` matters: in Tailwind v4, any variable in the `--ease-*`
+     namespace inside @theme auto-generates a matching timing-function utility.
+     So this one line gives us the class `ease-spring-gentle` to use in JSX.
+     (Browser support: Chrome 113+, Safari 17.4+, Firefox 112+.)
+     ------------------------------------------------------------------------- */
+  --ease-spring-gentle: linear(
+    0, 0.0188, 0.0679, 0.1374, 0.2195, 0.308, 0.3978, 0.4856, 0.5686, 0.6452,
+    0.7142, 0.7753, 0.8283, 0.8735, 0.9113, 0.9423, 0.9671, 0.9866, 1.0014,
+    1.0123, 1.0198, 1.0247, 1.0274, 1.0283, 1.0281, 1.0268, 1.025, 1.0227,
+    1.0202, 1.0177, 1.0152, 1.0128, 1.0106, 1.0085, 1.0068, 1.0052, 1.0039,
+    1.0028, 1.0018, 1.0011, 1.0005, 1, 0.9997, 0.9995, 0.9993, 0.9992, 0.9992,
+    0.9992, 0.9992, 0.9993, 0.9993
+  );
 }
 
 /* ===========================================================================

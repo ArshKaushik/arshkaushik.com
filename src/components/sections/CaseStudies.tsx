@@ -12,6 +12,7 @@ export default function CaseStudies() {
                 <CaseStudyCard
                     key={study.title}
                     title={study.title}
+                    description={study.description}
                     isFirst={index === 0}
                 />
             ))}
