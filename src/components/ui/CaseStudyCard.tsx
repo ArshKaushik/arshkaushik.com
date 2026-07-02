@@ -30,9 +30,12 @@ export default function CaseStudyCard({
                 `relative` makes this box the positioning context for the
                 description below (which is `absolute`). The title stays in normal
                 flow, pinned to the bottom by `justify-end`; on hover it slides up
-                to reveal the description. We dropped the old `gap-2` here because
-                the 8px space between the two lines is now produced by the title's
-                -42px hover offset, not by a flex gap. */}
+                to reveal the description. The 8px gap between them is produced by
+                how far the title rises: the description sits pinned at the bottom
+                (height 42px), and the title lifts by (42 + 8) = 50px, leaving
+                exactly 8px below it. NOTE: 50px is tied to the current 2-line
+                (42px) descriptions — a longer/shorter description would change the
+                needed offset (a real flex `gap-2` would be sturdier if copy varies). */}
             <div className="relative flex h-[73px] w-full flex-col items-start justify-end">
                 {/* DESCRIPTION — Figma node 72:72 animates opacity 0 → 1 (it fades
                     in place; it does NOT move).
@@ -58,13 +61,15 @@ export default function CaseStudyCard({
                     {description}
                 </p>
 
-                {/* TITLE — Figma node 72:71 animates translateY 0 → -42px (slides
-                    up 42px to open room for the description beneath it).
-                    `group-hover:-translate-y-[42px]` is the "hovered" position; the
+                {/* TITLE — on hover it slides UP to open the 8px gap above the
+                    description. Figma's title moves -42px, but that assumes Figma's
+                    shorter description; ours renders 42px tall, so we lift the title
+                    (42 + 8) = 50px to land an exact 8px gap.
+                    `group-hover:-translate-y-[50px]` is the "hovered" position; the
                     same `transition duration-[511ms] ease-spring-gentle` animates
                     the move with the gentle spring — watch it nudge slightly past
-                    -42px and settle back, which is the spring's overshoot. */}
-                <p className="w-full font-serif text-[24px] text-textPrimary transition duration-[511ms] ease-spring-gentle group-hover:-translate-y-[42px] motion-reduce:transition-none">
+                    and settle back, which is the spring's overshoot. */}
+                <p className="w-full font-serif text-[24px] text-textPrimary transition duration-[511ms] ease-spring-gentle group-hover:-translate-y-[50px] motion-reduce:transition-none">
                     {title}
                 </p>
             </div>
