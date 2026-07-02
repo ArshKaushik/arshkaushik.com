@@ -56,22 +56,40 @@
    from a border at all.
 
    THE TRICK
-   Instead of a border, we PAINT the line as a background image using a
-   `repeating-linear-gradient`, where we DO control the sizes:
+   Instead of a border, we PAINT the line as a background image and TILE it.
+   One tile is a 20px gradient — solid stroke for the first half, transparent
+   for the second — which reads as a 10px dash + 10px gap:
 
-     repeating-linear-gradient(to right, <color> 0 10px, transparent 10px 20px)
+     linear-gradient(to right, <color> 50%, transparent 50%)   ← one 20px tile
 
-   Read left→right: paint the stroke color from 0px to 10px (the dash), then
-   transparent from 10px to 20px (the gap), then repeat forever. Using
-   `to bottom` instead makes a vertical line (for left/right edges).
+   `background-size: 20px 1px` sizes that tile (20px long, 1px thick) and
+   `background-repeat: repeat-x` tiles it along the edge. Tiling a small fixed
+   tile rasterizes crisply on the GPU — a gradient stretched across the whole
+   edge can blur the gaps in some browsers. `to bottom` + `1px 20px` + `repeat-y`
+   makes a vertical line for the left/right edges.
    =========================================================================== */
 
+/* CRITICAL: register the per-edge variables as NON-inheriting. CSS custom
+   properties inherit by default, so `main`'s `dash-x` (which sets --dash-l /
+   --dash-r) would otherwise leak those values into EVERY descendant that uses
+   `dashed` — making the stats row, stat cells, tagline and cards draw spurious,
+   doubled left/right (and top/bottom) lines. `inherits: false` scopes each edge
+   to the element that actually sets it, so `var(--dash-*, none)` correctly falls
+   back to `none` on everyone else. (--dash-h / --dash-v below stay inheriting —
+   they're the shared tile definitions, meant to be read everywhere.) */
+@property --dash-t { syntax: "*"; inherits: false; }
+@property --dash-b { syntax: "*"; inherits: false; }
+@property --dash-l { syntax: "*"; inherits: false; }
+@property --dash-r { syntax: "*"; inherits: false; }
+
 :root {
-  /* Two reusable line "segments". `--dash-h` is a horizontal line (used on the
-     TOP and BOTTOM edges); `--dash-v` is a vertical line (LEFT and RIGHT edges).
-     `var(--color-stroke)` reuses the same #d8d8d8 token as everything else. */
-  --dash-h: repeating-linear-gradient(to right, var(--color-stroke) 0 10px, transparent 10px 20px);
-  --dash-v: repeating-linear-gradient(to bottom, var(--color-stroke) 0 10px, transparent 10px 20px);
+  /* One dash TILE. `--dash-h` is a horizontal tile (used on the TOP/BOTTOM
+     edges); `--dash-v` is a vertical tile (LEFT/RIGHT edges). Each is a hard
+     50/50 gradient — half stroke, half transparent — which becomes a 10px dash +
+     10px gap once sized to a 20px tile below. `var(--color-stroke)` reuses the
+     same #d8d8d8 token as everything else. */
+  --dash-h: linear-gradient(to right, var(--color-stroke) 50%, transparent 50%);
+  --dash-v: linear-gradient(to bottom, var(--color-stroke) 50%, transparent 50%);
 }
 
 /* The base utility: add `dashed` to switch the effect ON, then add edge markers
@@ -80,19 +98,20 @@
    It declares four stacked background layers — one per edge. Each layer's image
    comes from a CSS variable the markers set (`--dash-t` = top, `-b` = bottom,
    `-l` = left, `-r` = right). If a marker isn't applied, the variable falls back
-   to `none`, so that edge simply draws nothing. The three lists below line up by
+   to `none`, so that edge simply draws nothing. The four lists below line up by
    position — layer 1 = top, 2 = bottom, 3 = left, 4 = right:
-     • background-size pins each line to 1px thick (100%×1px = a full-width row,
-       1px×100% = a full-height column)
+     • background-size sizes each TILE: 20px×1px for the horizontal edges (a 20px
+       dash+gap tile, 1px thick) and 1px×20px for the vertical edges
      • background-position parks each line on its edge
-     • background-repeat: no-repeat stops the single 1px line from tiling.
+     • background-repeat tiles the 20px tile ALONG the edge: repeat-x for the
+       horizontal top/bottom lines, repeat-y for the vertical left/right lines.
    Note: this is a background, so it coexists with `bg-surface`/`bg-page` (which
    set background-COLOR) — the dashes paint on top, gaps reveal the color behind. */
 @utility dashed {
   background-image: var(--dash-t, none), var(--dash-b, none), var(--dash-l, none), var(--dash-r, none);
   background-position: top, bottom, left, right;
-  background-size: 100% 1px, 100% 1px, 1px 100%, 1px 100%;
-  background-repeat: no-repeat;
+  background-size: 20px 1px, 20px 1px, 1px 20px, 1px 20px;
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
 }
 
 /* Edge markers. Each just sets its edge's variable, so they STACK: writing
@@ -105,3 +124,18 @@
 @utility dash-r { --dash-r: var(--dash-v); } /* right  */
 @utility dash-x { --dash-l: var(--dash-v); --dash-r: var(--dash-v); } /* left + right */
 @utility dash-y { --dash-t: var(--dash-h); --dash-b: var(--dash-h); } /* top + bottom */
+
+/* ---------------------------------------------------------------------------
+   Pixel-snapped centering for the 600px content column
+   ---------------------------------------------------------------------------
+   The column is centered in the space beside the sidebar. A normal centered
+   margin is `(available - 600) / 2`, which is a HALF-pixel on odd window widths.
+   At a half-pixel the column's 1px VERTICAL hairlines straddle two device pixels
+   and blur / look thicker (the horizontal lines are unaffected — they sit on
+   whole-pixel rows). `round(…, 1px)` snaps the centering margin to a whole pixel
+   so the left edge — and every vertical line inside — stays sharp.
+   (`100%` here is the column's containing block: the area beside the sidebar.
+   round() is CSS math: Chrome/Arc 125+, Safari 15.4+, Firefox 118+.) */
+@utility snap-center-x {
+  margin-left: round(calc((100% - 600px) / 2), 1px);
+}

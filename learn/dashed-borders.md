@@ -1,0 +1,321 @@
+# Dashed Borders — Deep Dive
+
+A complete walkthrough of how the dashed hairlines in this project work, line by
+line, plus the story of a subtle bug (CSS variable **inheritance**) that hid in
+this code and why it took so long to find.
+
+All the code lives in **`src/app/globals.css`** (the `Custom dashed hairlines`
+section) and is used in `page.tsx`, `Hero.tsx`, `Stat.tsx`, and `CaseStudyCard.tsx`.
+
+---
+
+## 1. The goal and the constraint
+
+The Figma design uses dashed dividers with an exact rhythm: **10px dash, 10px
+gap, 1px thick, colour `#d8d8d8`**.
+
+The obvious tool is a CSS dashed border (`border: 1px dashed`, i.e. Tailwind's
+`border-dashed`). **It cannot do this.** `border-style: dashed` hands the dash
+and gap lengths to the *browser* — the spec gives you no property to set them.
+Every browser picks its own (usually short) dashes. So a real border is out.
+
+**Key idea:** if we can't control a *border*, we'll *paint the line ourselves*
+as a background image, where we control everything.
+
+---
+
+## 2. Painting a line with a gradient
+
+A CSS gradient is just an image. We can make an image that looks like one dash:
+
+```css
+linear-gradient(to right, var(--color-stroke) 50%, transparent 50%)
+```
+
+Read it left→right: from `0%` to `50%` it's the stroke colour; from `50%` to
+`100%` it's transparent. The two stops sit at the **same** point (`50%`), so
+there's a **hard edge** — no fade. That gives us a tile that is "half solid,
+half empty."
+
+Now we control the size and tiling with three background properties:
+
+```css
+background-size: 20px 1px;   /* the tile is 20px long, 1px thick        */
+background-repeat: repeat-x; /* tile it left→right along the edge       */
+background-position: top;    /* park it on the top edge                 */
+```
+
+`20px` tile × `50%` solid = **10px dash**, and the other half = **10px gap**.
+Repeat it and you get a perfect 10 / 10 dashed line. For a *vertical* line we
+just rotate the idea: `to bottom`, `background-size: 1px 20px`, `repeat-y`.
+
+> **Why a fixed 20px tile instead of `repeating-linear-gradient(...)` stretched
+> across the whole edge?** A tiny fixed tile rasterises crisply on the GPU. A
+> repeating gradient computed across a long edge can blur its gaps in some
+> browsers. The fixed tile is the more robust choice — this project used the
+> repeating version first and switched to the tile for exactly this reason.
+
+---
+
+## 3. Making it composable: a base + edge "markers"
+
+We don't want to hand-write those background rules on every element. Instead we
+build a small system: **one base utility that can draw up to four edges, plus
+tiny "marker" utilities that switch individual edges on.** They compose like
+Tailwind's own `border-t` / `border-x`.
+
+### 3a. The shared tiles
+
+```css
+:root {
+  --dash-h: linear-gradient(to right,  var(--color-stroke) 50%, transparent 50%);
+  --dash-v: linear-gradient(to bottom, var(--color-stroke) 50%, transparent 50%);
+}
+```
+
+- `--dash-h` = the **horizontal** line tile (for top/bottom edges).
+- `--dash-v` = the **vertical** line tile (for left/right edges).
+
+They're defined once and reused, so the dash colour/shape lives in a single place.
+
+### 3b. The base utility
+
+```css
+@utility dashed {
+  background-image:    var(--dash-t, none), var(--dash-b, none), var(--dash-l, none), var(--dash-r, none);
+  background-position: top,                 bottom,              left,                right;
+  background-size:     20px 1px,            20px 1px,            1px 20px,            1px 20px;
+  background-repeat:   repeat-x,            repeat-x,            repeat-y,            repeat-y;
+}
+```
+
+This is the heart of it. A background can hold **multiple stacked layers**,
+separated by commas, and the four properties above line up **by position**:
+
+| Layer | image | position | size | repeat | = which edge |
+|------:|-------|----------|------|--------|--------------|
+| 1 | `var(--dash-t, none)` | `top`    | `20px 1px` | `repeat-x` | **top** |
+| 2 | `var(--dash-b, none)` | `bottom` | `20px 1px` | `repeat-x` | **bottom** |
+| 3 | `var(--dash-l, none)` | `left`   | `1px 20px` | `repeat-y` | **left** |
+| 4 | `var(--dash-r, none)` | `right`  | `1px 20px` | `repeat-y` | **right** |
+
+The clever bit is `var(--dash-t, none)`: each layer's image comes from a
+variable, and if that variable **isn't set**, it falls back to `none` — an empty
+layer that draws nothing. So the base *always* declares four layers, but a layer
+is only visible if something set its variable. That "something" is a marker.
+
+### 3c. The markers
+
+```css
+@utility dash-t { --dash-t: var(--dash-h); } /* top    */
+@utility dash-b { --dash-b: var(--dash-h); } /* bottom */
+@utility dash-l { --dash-l: var(--dash-v); } /* left   */
+@utility dash-r { --dash-r: var(--dash-v); } /* right  */
+@utility dash-x { --dash-l: var(--dash-v); --dash-r: var(--dash-v); } /* left + right */
+@utility dash-y { --dash-t: var(--dash-h); --dash-b: var(--dash-h); } /* top + bottom */
+```
+
+Each marker does one job: set its edge's variable to the right tile. Because
+they only flip variables (which the base reads), **they stack**:
+
+```html
+<div class="dashed dash-t dash-b">   <!-- top + bottom -->
+<div class="dashed dash-x">          <!-- left + right (shortcut) -->
+```
+
+`dash-x` / `dash-y` are convenience markers that set two edges at once, mirroring
+Tailwind's `border-x` / `border-y`.
+
+### 3d. Where each is used
+
+| Element | classes | draws |
+|---|---|---|
+| `main` (the 600px column) — `page.tsx` | `dashed dash-x` | left + right rails |
+| tagline box — `Hero.tsx` | `dashed dash-t` | top |
+| stats row — `Hero.tsx` | `dashed dash-y` | top + bottom |
+| stat cells 2 & 3 — via `Hero.tsx` | `dashed dash-l` | left divider |
+| case-study card — `CaseStudyCard.tsx` | `dashed dash-b` (+ `dash-t` on the first via the `isFirst` prop) | bottom (first card also top) |
+
+---
+
+## 4. A separate fix: pixel-snapped centering
+
+```css
+@utility snap-center-x {
+  margin-left: round(calc((100% - 600px) / 2), 1px);
+}
+```
+
+Used on `main`. This solves a *different* 1px-line problem. The column is
+centred beside the sidebar, so its left margin is `(available − 600) / 2`. On an
+**odd** window width that's a **half-pixel** (e.g. `420.5px`). A 1px vertical
+line sitting on a half-pixel straddles two device pixels and renders soft/thick.
+
+`round(…, 1px)` is CSS doing math at layout time: it rounds the centring margin
+to a whole pixel, so the column's left edge — and every vertical line inside it —
+always lands on an integer pixel and stays sharp. (`100%` here resolves against
+the column's containing block, the area beside the sidebar.)
+
+> This is worth separating in your head from the bug below. Snapping addresses
+> *sub-pixel position*. The bug below was about *extra lines being drawn at all*.
+
+---
+
+## 5. The bug that hid for a long time: variable **inheritance**
+
+This system had a serious flaw baked in from the moment it was built. It caused
+the stats' vertical lines to look thick / near-solid, and — the tell that cracked
+it — made **one stat's divider look correct while the next one didn't.**
+
+### 5a. What actually went wrong
+
+**CSS custom properties inherit by default.** That's the whole bug in one
+sentence.
+
+`main` has `dash-x`, which sets `--dash-l` and `--dash-r` **on `main`**. Because
+those variables inherit, *every descendant of `main`* — the tagline, the stats
+row, each stat cell, the cards — silently received `--dash-l` and `--dash-r` too.
+
+And any descendant that also had the `dashed` base read those inherited values.
+Remember layer 3 is `var(--dash-l, none)` — the `none` fallback only kicks in
+when `--dash-l` is **unset**. But it wasn't unset anymore; it was *inherited*. So
+those elements drew **extra left/right lines they were never asked to draw.**
+
+It cascaded further: the stats row's own `dash-y` set `--dash-t`/`--dash-b`,
+which then inherited into the **stat cells** — so each stat cell ended up drawing
+**all four edges** instead of just its one left divider.
+
+A probe of the live DOM made it undeniable (`1` = that edge is being drawn):
+
+```
+                 t  b  l  r
+main             -  -  1  1     ← correct: only its own left/right rails
+statsRow         1  1  1  1     ← BUG: l,r inherited from main (should be t,b)
+stat2            1  1  1  1     ← BUG: should be just l — drawing all four!
+stat3            1  1  1  1     ← same
+```
+
+### 5b. Why that produced *exactly* the symptoms seen
+
+- **stat2's left divider looked correct.** Its left edge (x≈660) had only its own
+  line — the cell to its left (`stat1`) has no `dashed` base, so nothing else drew
+  there.
+- **stat3's left divider looked wrong/thick.** Its left edge (x≈852) is also
+  stat2's **right** edge — and stat2 was drawing an (inherited) right line there.
+  Two lines on the same pixel → doubled → thick.
+- **The stats block's left/right sides looked near-solid.** Those are `main`'s
+  rails, but the stats row was *also* drawing its own inherited left/right lines
+  on top of them — at a **different dash phase** (different element height), so the
+  two dashed lines filled each other's gaps and read as a solid line.
+
+### 5c. Why it was so hard to detect and fix
+
+This is the interesting part — several things conspired to hide it:
+
+1. **The geometry was perfect.** Every element's measured position was a clean
+   integer (`stat2 left = 660`, `stat3 left = 852`, …). Debugging that measured
+   *positions* — including the pixel-snap fix in §4 — found nothing wrong, because
+   nothing *was* wrong about positions. The bug was in the **number of layers
+   being painted**, which position data never reveals.
+
+2. **Screenshots looked fine.** Automated screenshots were taken with a
+   *software* renderer at an exact integer scale. Two doubled lines that happen to
+   align look like one 1px line there, and the near-solid effect needs a real
+   display (GPU rasterisation + a phase mismatch) to jump out. So the captures
+   kept saying "crisp" while the real browser said otherwise.
+
+3. **The symptom impersonated a completely different problem.** Soft/thick 1px
+   vertical lines, worse in some spots, showing up in *every* browser (Safari and
+   Arc alike) is the textbook fingerprint of a **sub-pixel / display-scaling**
+   issue. That was a very convincing wrong hypothesis — it even led to a confident
+   (and incorrect) "it's your macOS scaled resolution" conclusion. A good-looking
+   wrong theory is the most expensive kind, because it stops you looking further.
+
+4. **It was invisible in the source.** Nothing in `Hero.tsx` or `Stat.tsx` says
+   "draw a right border on stat2." The extra lines came from *inheritance*, a
+   mechanism acting behind the JSX. You can read every component file and never
+   see it.
+
+5. **It was there from day one of this design.** The composable variable system
+   worked correctly *until* something up the tree (`main`'s `dash-x`) set an edge
+   variable that a descendant didn't override. Before the rails existed the
+   inheritance had nothing to leak, so the design looked sound.
+
+**What finally found it:** stop trusting screenshots and positions, and probe the
+*computed* result — dump each element's `getComputedStyle().backgroundImage` and
+check which `--dash-*` variables were set on it. That's when `stat2`/`stat3`
+showing all four edges gave it away. (Credit where due: the "is something drawn
+twice?" hypothesis pointed straight at this.)
+
+### 5d. The fix
+
+Register the four edge variables as **non-inheriting**:
+
+```css
+@property --dash-t { syntax: "*"; inherits: false; }
+@property --dash-b { syntax: "*"; inherits: false; }
+@property --dash-l { syntax: "*"; inherits: false; }
+@property --dash-r { syntax: "*"; inherits: false; }
+```
+
+`@property` lets you *register* a custom property and declare how it behaves.
+`inherits: false` means a child does **not** pick up an ancestor's value. Now:
+
+- `main` sets `--dash-l`/`--dash-r` → only `main` draws rails.
+- The stats row, stat cells, tagline, cards don't inherit those anymore, so for
+  them `var(--dash-l, none)` correctly falls back to **`none`** — each element
+  draws *only* the edges its own markers set.
+
+Note we register only the four **per-edge** variables. `--dash-h` / `--dash-v`
+(the shared tiles) are left as normal *inheriting* variables on purpose — they're
+meant to be readable everywhere.
+
+The same probe after the fix:
+
+```
+                 t  b  l  r
+main             -  -  1  1     ← rails only
+statsRow         1  1  -  -     ← top/bottom only  ✅ leak gone
+stat2            -  -  1  -     ← left only        ✅
+stat3            -  -  1  -     ← left only        ✅
+```
+
+`syntax: "*"` just means "accept any value" (we're storing a gradient or nothing,
+not a typed length/colour). `@property` is supported in Chrome/Arc 85+,
+Safari 16.4+, Firefox 128+.
+
+---
+
+## 6. Lessons to carry forward
+
+- **CSS custom properties inherit by default.** If you use them as *element-local
+  flags* (like these per-edge toggles), that's a trap waiting to spring the moment
+  an ancestor sets the same variable. Reach for `@property { inherits: false }` to
+  scope them.
+- **Debug the dimension that matches your hypothesis.** Measuring *positions* when
+  the bug is in *layer count* will "confirm" everything is fine. Ask what the
+  symptom actually implies and probe *that*.
+- **A convincing wrong theory is costly.** "It's display scaling" fit the visible
+  symptoms and wasted the most time. Reproduce and measure the real computed
+  output before committing to a cause.
+- **`background`, not `border`, when you need pixel-exact dashes** — and prefer a
+  small fixed *tile* (`background-size` + `repeat`) over a stretched
+  `repeating-linear-gradient`.
+
+---
+
+## 7. Quick reference
+
+```css
+/* turn dashes on, then pick edges (they stack) */
+class="dashed dash-t"          /* top */
+class="dashed dash-y"          /* top + bottom */
+class="dashed dash-x"          /* left + right */
+class="dashed dash-b first?"   /* bottom, + dash-t on the first item */
+```
+
+- Tile = `linear-gradient(dir, stroke 50%, transparent 50%)` sized to `20px`
+  → 10px dash / 10px gap.
+- Base `dashed` = four background layers fed by `--dash-t/-b/-l/-r`.
+- Markers set those vars; `@property … inherits:false` keeps them from leaking.
+- `snap-center-x` keeps the centred column on whole pixels (separate 1px concern).

@@ -36,7 +36,7 @@ export default function RootLayout({
             >
                 <div className="flex min-h-screen items-start">
                     <Sidebar />
-                    <div className="flex flex-1 items-start justify-center pr-[260px]">
+                    <div className="flex flex-1 items-start pr-[260px]">
                         {children}
                     </div>
                 </div>

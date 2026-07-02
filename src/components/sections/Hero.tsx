@@ -1,11 +1,10 @@
 import { heroTagline, stats } from "@/lib/content";
 import Stat from "@/components/ui/Stat";
 
-// Figma: "hero" — the serif tagline followed by a row of stats.
 export default function Hero() {
     return (
         <section className="flex w-full flex-col items-start">
-            {/* Figma: "tagline" */}
+
             <div className="flex w-full flex-col items-start dashed dash-t bg-surface p-6">
                 <p className="w-[548px] font-serif text-[40px] leading-[normal] text-textPrimary">
                     {heroTagline}
