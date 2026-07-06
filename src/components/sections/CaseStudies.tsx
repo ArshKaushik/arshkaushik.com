@@ -1,4 +1,4 @@
-import { caseStudies } from "@/lib/content";
+import { caseStudies } from "@/lib/case-studies";
 import CaseStudyCard from "@/components/ui/CaseStudyCard";
 
 export default function CaseStudies() {
@@ -12,7 +12,7 @@ export default function CaseStudies() {
                 <CaseStudyCard
                     key={study.title}
                     title={study.title}
-                    description={study.description}
+                    description={study.summary}
                     isFirst={index === 0}
                 />
             ))}
