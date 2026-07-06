@@ -11,3 +11,7 @@ Rules:
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
 - Before editing code, trace impact first: use `graphify path "<target>" "<dependent>"` (or `graphify query`) to find callers and dependents, so you know what the change affects.
 - Don't open with grep/glob for navigation — reach for them only after query/path/explain come up short.
+
+## Git
+
+- Whenever the user asks to push to origin (e.g. "push origin", "push to origin", "commit and push"), FIRST update `README.md` to reflect what's being pushed (project structure, notable features, learn docs, status) — then commit and push. Never push without bringing the README up to date in the same push.
