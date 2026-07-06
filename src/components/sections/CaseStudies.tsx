@@ -11,6 +11,7 @@ export default function CaseStudies() {
             {caseStudies.map((study, index) => (
                 <CaseStudyCard
                     key={study.title}
+                    slug={study.slug}
                     title={study.title}
                     description={study.summary}
                     isFirst={index === 0}

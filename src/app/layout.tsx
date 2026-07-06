@@ -18,12 +18,35 @@ const instrumentSerif = Instrument_Serif({
 export const metadata: Metadata = {
     title: `${identity.name} | ${identity.role}`,
     description: `${heroTagline}`,
+    // Theme-aware favicon. Next renders these as <link rel="icon"> tags.
+    // The browser only exposes a coarse light/dark preference
+    // (prefers-color-scheme), which we map to the two icons:
+    icons: {
+        icon: [
+            // Default = the light-mode icon. Also the fallback for browsers that
+            // report no colour preference or don't honour `media` on icons.
+            { url: "/favicon-light.png", type: "image/png", sizes: "96x96" },
+            // Dark mode overrides it: this link both matches AND comes last, so
+            // the browser picks it when prefers-color-scheme is dark.
+            {
+                url: "/favicon-dark.png",
+                media: "(prefers-color-scheme: dark)",
+                type: "image/png",
+                sizes: "96x96",
+            },
+        ],
+    },
 };
 
 export default function RootLayout({
     children,
+    modal,
 }: Readonly<{
     children: React.ReactNode;
+    // `modal` is a PARALLEL ROUTE slot (the app/@modal folder). It renders
+    // alongside `children`, letting the case-study overlay layer on top of the
+    // home page without the home unmounting. See app/@modal/*.
+    modal: React.ReactNode;
 }>) {
     return (
         <html
@@ -40,6 +63,7 @@ export default function RootLayout({
                         {children}
                     </div>
                 </div>
+                {modal}
             </body>
         </html>
     );

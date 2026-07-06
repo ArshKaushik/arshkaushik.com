@@ -7,6 +7,7 @@
   --color-textSecondaryPage: #6f6f6f;
   --color-textSecondarySurface: #767676;
   --color-stroke: #d8d8d8;
+  --color-overlay: #111111; /* case-study overlay backdrop — used at /12 opacity */
 
   /* Font family variables are injected by next/font in layout.tsx */
   --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
