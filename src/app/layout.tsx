@@ -59,7 +59,7 @@ export default function RootLayout({
             >
                 <div className="flex min-h-screen items-start">
                     <Sidebar />
-                    <div className="flex flex-1 items-start pr-[260px]">
+                    <div className="flex min-w-0 flex-1 items-start snap-gutter-r">
                         {children}
                     </div>
                 </div>

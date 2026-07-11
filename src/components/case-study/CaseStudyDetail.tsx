@@ -48,7 +48,7 @@ const renderInline = (s: string): React.ReactNode => {
 
 export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
     return (
-        <article className="flex w-[800px] max-w-full flex-col gap-8 dashed dash-x dash-y bg-surface p-8">
+        <article className="flex w-[800px] min-w-0 max-w-full flex-col gap-8 dashed dash-x dash-y bg-surface p-8">
             {/* title + summary */}
             <div className="flex w-full flex-col gap-2">
                 <h1 className="font-serif text-[28px] text-textPrimary">

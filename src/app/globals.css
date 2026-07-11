@@ -127,16 +127,37 @@
 @utility dash-y { --dash-t: var(--dash-h); --dash-b: var(--dash-h); } /* top + bottom */
 
 /* ---------------------------------------------------------------------------
-   Pixel-snapped centering for the 600px content column
+   Responsive gutter + pixel-snapped centering for the 600px content column
    ---------------------------------------------------------------------------
-   The column is centered in the space beside the sidebar. A normal centered
+   Two Figma reference frames define this: the original desktop frame (1440px
+   viewport) shows the column with a 160px gap after the sidebar; a 900px-
+   viewport frame shows the SAME 260px sidebar and 600px column, but flush
+   against the sidebar (0px gap), with 40px left unclaimed on the right.
+
+   `snap-gutter-r` mirrors the sidebar's width as a phantom right gutter so
+   `snap-center-x` below can center the column as if flanked by two rails.
+   860 = sidebar(260) + column(600) — the viewport width at which the gutter
+   alone would hit 0. The gutter is clamped between the two Figma data points:
+   40px at a 900px viewport, 260px (unchanged) at 1120px and up. Below 1120,
+   the centering formula below always resolves to a flush 0px margin (proven
+   algebraically), so the transition is perfectly smooth with no breakpoint
+   needed — only this one utility's value moves. */
+@utility snap-gutter-r {
+  padding-right: clamp(40px, calc(100vw - 860px), 260px);
+}
+
+/* The column is centered in the space beside the sidebar. A normal centered
    margin is `(available - 600) / 2`, which is a HALF-pixel on odd window widths.
    At a half-pixel the column's 1px VERTICAL hairlines straddle two device pixels
    and blur / look thicker (the horizontal lines are unaffected — they sit on
    whole-pixel rows). `round(…, 1px)` snaps the centering margin to a whole pixel
    so the left edge — and every vertical line inside — stays sharp.
-   (`100%` here is the column's containing block: the area beside the sidebar.
-   round() is CSS math: Chrome/Arc 125+, Safari 15.4+, Firefox 118+.) */
+   (`100%` here is the column's containing block: the area beside the sidebar,
+   after `snap-gutter-r`'s padding is subtracted. round() is CSS math:
+   Chrome/Arc 125+, Safari 15.4+, Firefox 118+. `max(0px, …)` floors the margin
+   at 0 for viewports narrower than 900px — not designed yet, a future mobile
+   pass owns that range; this just keeps the column from sliding under the
+   sidebar in the meantime.) */
 @utility snap-center-x {
-  margin-left: round(calc((100% - 600px) / 2), 1px);
+  margin-left: max(0px, round(calc((100% - 600px) / 2), 1px));
 }

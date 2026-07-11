@@ -39,7 +39,7 @@ export default async function CaseStudyPage({
     const study = caseStudies.find((c) => c.slug === slug);
     if (!study) notFound();
     return (
-        <div className="flex w-full justify-center px-2.5 py-20">
+        <div className="flex w-full min-w-0 justify-center px-2.5 py-20">
             <CaseStudyDetail study={study} />
         </div>
     );
