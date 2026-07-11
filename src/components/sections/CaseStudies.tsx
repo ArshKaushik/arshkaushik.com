@@ -14,6 +14,7 @@ export default function CaseStudies() {
                     slug={study.slug}
                     title={study.title}
                     description={study.summary}
+                    thumbnailCover={study.thumbnailCover}
                     isFirst={index === 0}
                 />
             ))}

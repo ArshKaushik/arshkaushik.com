@@ -1,4 +1,5 @@
 import type { CaseStudy, CaseStudyPoint } from "@/lib/case-studies";
+import Image from "next/image";
 
 // The case-study content card (Figma node 273-440). Presentational + reused by
 // BOTH the overlay (app/@modal) and the full page (app/work/[slug]).
@@ -58,8 +59,22 @@ export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
                 </p>
             </div>
 
-            {/* Placeholder for an upcoming visual / animation (grey block). */}
-            <div className="h-[394px] w-full bg-page" />
+            {/* Visual: the study's thumbnailCover (same image as the home card),
+                cropped to fill via object-cover; an empty grey block until set. */}
+            <div className="relative h-[394px] w-full overflow-hidden bg-page">
+                {study.thumbnailCover && (
+                    <Image
+                        src={study.thumbnailCover}
+                        alt={study.title}
+                        fill
+                        sizes="736px"
+                        // draggable={false} blocks dragging the image out (works
+                        // cross-browser); [-webkit-user-drag:none] hardens WebKit.
+                        draggable={false}
+                        className="object-cover select-none [-webkit-user-drag:none]"
+                    />
+                )}
+            </div>
 
             {/* Metadata table — dashed box, dashed divider between rows. */}
             <dl className="flex w-full flex-col dashed dash-x dash-y">

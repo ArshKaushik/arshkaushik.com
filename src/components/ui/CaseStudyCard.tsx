@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 // Figma component: "caseStudyCard" — an image slot with a serif title beneath.
 // The whole card is a Link to /work/[slug]; clicking it opens that study's
@@ -17,11 +18,13 @@ export default function CaseStudyCard({
     slug,
     title,
     description,
+    thumbnailCover,
     isFirst = false,
 }: {
     slug: string;
     title: string;
     description: string;
+    thumbnailCover?: string;
     isFirst?: boolean;
 }) {
     return (
@@ -31,8 +34,24 @@ export default function CaseStudyCard({
                 isFirst ? "dash-t" : ""
             }`}
         >
-            {/* Figma: "thumbnail" — image slot. Drop a <Image /> here later. */}
-            <div className="h-[296px] w-full bg-surface" />
+            {/* Figma: "thumbnail" — image slot. Shows the study's thumbnailCover
+                image, cropped to fill via object-cover; an empty box until set.
+                `fill` needs a positioned, sized parent → relative + h/w + overflow. */}
+            <div className="relative h-[296px] w-full overflow-hidden bg-surface">
+                {thumbnailCover && (
+                    <Image
+                        src={thumbnailCover}
+                        alt={`${title} preview`}
+                        fill
+                        sizes="600px"
+                        // draggable={false} = the reliable, cross-browser way to
+                        // block dragging the image out. The [-webkit-user-drag:none]
+                        // class hardens it on WebKit/Blink (Chrome/Safari/Edge).
+                        draggable={false}
+                        className="object-cover select-none [-webkit-user-drag:none]"
+                    />
+                )}
+            </div>
 
             {/* Figma: "title&description".
                 `relative` makes this box the positioning context for the

@@ -8,6 +8,7 @@ export const commandLine: CaseStudy = {
     deck: "Two CLI-bound workflows — agent versioning and agent health — rebuilt as one visual control room.",
     summary:
         "Turned CLI-only agent management into one visual interface — upgrades, rollbacks, and health monitoring at a glance, with instant outage alerts. Human errors fell 80%.",
+    thumbnailCover: "/thumbnails/commandLine.svg",
     meta: [
         {
             label: "Role",
