@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { CaseStudy } from "@/lib/case-studies";
 import CaseStudyDetail from "./CaseStudyDetail";
+import BackNav from "./BackNav";
 
 // The dimmed overlay that presents a case study on top of the home page.
 // Rendered by the intercepted route (app/@modal/(.)work/[slug]) on a soft
@@ -12,6 +13,12 @@ import CaseStudyDetail from "./CaseStudyDetail";
 // Motion (Figma): the backdrop fades in and the card SLIDES UP from the bottom
 // of the screen, using the shared --ease-spring-gentle spring. Closing plays it
 // in reverse, then navigates back (which unmounts this overlay).
+//
+// Below 900px (Figma node 490:58427) this stops being an inset, dimmed modal —
+// it becomes a true full-bleed page (opaque bg-page, no padding) with its own
+// "Back" pill replacing Sidebar's. The backdrop being opaque + fixed inset-0 at
+// z-50 is what makes it cover Sidebar's own bottom pill underneath — no
+// coordination between the two components needed.
 export default function CaseStudyOverlay({ study }: { study: CaseStudy }) {
     const router = useRouter();
     // `open` drives the enter/exit transition. It starts false (card off-screen,
@@ -76,19 +83,34 @@ export default function CaseStudyOverlay({ study }: { study: CaseStudy }) {
             aria-label={study.title}
             tabIndex={-1}
             onClick={close}
-            className={`fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-overlay/12 px-2.5 py-20 outline-none transition-opacity duration-[400ms] ease-spring-gentle motion-reduce:transition-none ${
+            className={`fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-page px-0 pt-0 pb-[140px] outline-none transition-opacity duration-[400ms] ease-spring-gentle motion-reduce:transition-none min-[900px]:bg-overlay/12 min-[900px]:px-2.5 min-[900px]:py-20 ${
                 open ? "opacity-100" : "opacity-0"
             }`}
         >
-            {/* Clicks INSIDE the card must not bubble to the backdrop (which closes). */}
+            {/* Clicks INSIDE the card must not bubble to the backdrop (which closes).
+                w-full + flex justify-center: the dialog above is flex-col +
+                items-center, so THIS div's width is a cross-axis size —
+                items-center doesn't stretch it, so without an explicit width it
+                shrink-to-fits CaseStudyDetail's 800px preferred size instead of
+                the dialog's real available width (that's what an overflow-auto
+                ancestor does by design — let content overflow/scroll rather
+                than force-shrink it). Never an issue until this <900px
+                full-bleed treatment, since 800px always fit before 900px.
+                w-full forces this div to take the dialog's actual width, so
+                CaseStudyDetail's own max-w-full has a real container to shrink
+                against — but that also means dialog's items-center no longer
+                centers anything (this div already fills 100%), so this div
+                needs its OWN centering for its child, same as the standalone
+                page's wrapper (work/[slug]/page.tsx). */}
             <div
                 onClick={(e) => e.stopPropagation()}
-                className={`transition-transform duration-[520ms] ease-spring-gentle motion-reduce:transition-none ${
+                className={`flex w-full justify-center transition-transform duration-[520ms] ease-spring-gentle motion-reduce:transition-none ${
                     open ? "translate-y-0" : "translate-y-[100vh]"
                 }`}
             >
                 <CaseStudyDetail study={study} />
             </div>
+            <BackNav onClick={close} />
         </div>
     );
 }

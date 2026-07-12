@@ -28,9 +28,18 @@ import Link from "next/link";
 //   4. motion-reduce:transition-none — accessibility: if the OS "Reduce motion"
 //      setting is on, the text still changes size/colour, just without animating.
 //
-// Note: the container is a fixed box (h-7, w-[180px]) with items-center, so the
-// larger 14px text stays vertically centred and simply grows rightward — it
-// never pushes the other links around.
+// Note: at >=900px the container is a fixed box (h-7, w-[180px]) with
+// items-center, so the larger 14px text stays vertically centred and simply
+// grows rightward — it never pushes the other links around. Below 900px
+// (the bottom nav pill) there's no fixed width — links sit in a row and
+// shrink-to-fit their own text.
+//
+// Exported so the case-study "Back" pill (BackNav.tsx) can reuse the exact
+// same text styling without duplicating it — same "styling lives in exactly
+// one place" reasoning as this component itself.
+export const navLinkClassName =
+  "flex h-7 items-center text-[12px] text-textSecondaryPage transition-[color,font-size] duration-[511ms] ease-spring-gentle hover:text-[14px] hover:text-textPrimary motion-reduce:transition-none min-[900px]:w-[180px]";
+
 export default function NavLink({
   href,
   children,
@@ -39,10 +48,7 @@ export default function NavLink({
   children: React.ReactNode;
 }) {
   return (
-    <Link
-      href={href}
-      className="flex h-7 w-[180px] items-center text-[12px] text-textSecondaryPage transition-[color,font-size] duration-[511ms] ease-spring-gentle hover:text-[14px] hover:text-textPrimary motion-reduce:transition-none"
-    >
+    <Link href={href} className={navLinkClassName}>
       {children}
     </Link>
   );

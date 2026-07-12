@@ -62,17 +62,25 @@ export default function CaseStudyCard({
                 (height 42px), and the title lifts by (42 + 8) = 50px, leaving
                 exactly 8px below it. NOTE: 50px is tied to the current 2-line
                 (42px) descriptions — a longer/shorter description would change the
-                needed offset (a real flex `gap-2` would be sturdier if copy varies). */}
+                needed offset (a real flex `gap-2` would be sturdier if copy varies).
+
+                Below 900px there's no hover to reveal it with (touch), so the
+                description stays permanently visible/shifted — the min-[900px]:
+                variants below are what re-gate it behind group-hover at desktop
+                widths. */}
             <div className="relative flex h-[73px] w-full flex-col items-start justify-end">
-                {/* DESCRIPTION — fades in on hover (opacity 0 → 1) at a fixed spot;
-                    it's `absolute` so it never pushes the title. */}
-                <p className="absolute bottom-0 left-0 w-full font-sans text-[14px] text-textSecondarySurface opacity-0 transition duration-[511ms] ease-spring-gentle group-hover:opacity-100 motion-reduce:transition-none">
+                {/* DESCRIPTION — always visible below 900px; fades in on hover
+                    (opacity 0 → 1) at a fixed spot at >=900px. It's `absolute` so
+                    it never pushes the title. */}
+                <p className="absolute bottom-0 left-0 w-full font-sans text-[14px] text-textSecondarySurface opacity-100 transition duration-[511ms] ease-spring-gentle motion-reduce:transition-none min-[900px]:opacity-0 min-[900px]:group-hover:opacity-100">
                     {description}
                 </p>
 
-                {/* TITLE — slides up 50px on hover to open the 8px gap above the
-                    description, with the gentle spring (watch the slight overshoot). */}
-                <p className="w-full font-serif text-[24px] text-textPrimary transition duration-[511ms] ease-spring-gentle group-hover:-translate-y-[50px] motion-reduce:transition-none">
+                {/* TITLE — always shifted up below 900px (to stay open above the
+                    always-visible description); slides up 50px on hover at
+                    >=900px instead, with the gentle spring (watch the slight
+                    overshoot). */}
+                <p className="w-full -translate-y-[50px] font-serif text-[24px] text-textPrimary transition duration-[511ms] ease-spring-gentle motion-reduce:transition-none min-[900px]:translate-y-0 min-[900px]:group-hover:-translate-y-[50px]">
                     {title}
                 </p>
             </div>

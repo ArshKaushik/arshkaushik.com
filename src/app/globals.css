@@ -141,9 +141,20 @@
    40px at a 900px viewport, 260px (unchanged) at 1120px and up. Below 1120,
    the centering formula below always resolves to a flush 0px margin (proven
    algebraically), so the transition is perfectly smooth with no breakpoint
-   needed — only this one utility's value moves. */
+   needed — only this one utility's value moves.
+
+   Below 900px the sidebar becomes a fixed bottom pill (see Sidebar.tsx) —
+   there's no sidebar left to mirror, so the gutter drops to 0 and
+   `snap-center-x`'s own formula takes over doing genuine, un-mirrored
+   centering in the full viewport (40px each side at a 680px viewport,
+   per Figma frame 475:53735 — verified: content-box = 680 - 0 = 680,
+   margin = (680-600)/2 = 40, matching exactly). */
 @utility snap-gutter-r {
-  padding-right: clamp(40px, calc(100vw - 860px), 260px);
+  padding-right: 0px;
+
+  @media (min-width: 900px) {
+    padding-right: clamp(40px, calc(100vw - 860px), 260px);
+  }
 }
 
 /* The column is centered in the space beside the sidebar. A normal centered

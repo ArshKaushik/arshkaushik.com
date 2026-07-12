@@ -19,9 +19,14 @@ import Footer from "@/components/sections/Footer";
 //   • after:dashed after:dash-x reuses the same dashed utilities, just scoped to
 //     the pseudo — dash-x = left + right edges.
 // (main is `relative` so the absolute overlay is positioned against it.)
+//
+// mb-[140px] (below 900px only): Sidebar becomes a fixed bottom pill at this
+// width (~88px tall + 40px inset). Without clearance, it can cover Footer's
+// text at max scroll. margin (not padding) keeps the ::after rails ending
+// exactly where they do today instead of stretching into the empty space.
 export default function Home() {
   return (
-    <main className="relative flex w-[600px] flex-col items-start gap-6 overflow-clip pt-10 snap-center-x after:pointer-events-none after:absolute after:inset-0 after:content-[''] after:dashed after:dash-x">
+    <main className="relative flex w-[600px] flex-col items-start gap-6 overflow-clip pt-10 mb-[140px] snap-center-x after:pointer-events-none after:absolute after:inset-0 after:content-[''] after:dashed after:dash-x min-[900px]:mb-0">
       <Hero />
       <CaseStudies />
       <Footer />
