@@ -111,7 +111,7 @@ Crossing the 900px/600px thresholds used to be an instant snap — pure CSS medi
 
 ## Status
 
-Fully responsive (desktop down to any viewport width) and deployed with analytics. See [Environment variables](#environment-variables) before deploying — Clarity/PostHog need their keys set on the hosting provider, not just locally.
+**Live at [arshkaushik.com](https://arshkaushik.com)** — deployed on Vercel (DNS via Cloudflare), fully responsive across all three breakpoint tiers, with Clarity + PostHog analytics running in production.
 
 ## Learn docs
 
