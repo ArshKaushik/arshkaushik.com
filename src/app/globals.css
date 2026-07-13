@@ -127,6 +127,39 @@
 @utility dash-y { --dash-t: var(--dash-h); --dash-b: var(--dash-h); } /* top + bottom */
 
 /* ---------------------------------------------------------------------------
+   dash-x, but with a safety margin against a rare zoom-level rendering bug
+   ---------------------------------------------------------------------------
+   `dash-x`'s right line is positioned at `right` — computed by the browser as
+   (this box's rendered width - 1px), i.e. DERIVED from the box's own width.
+   `dash-l`'s left line sits at a literal `0` instead, needing no such
+   computation. At non-100% browser zoom (e.g. 33%), the CSS-pixel-to-device-
+   pixel ratio becomes fractional, and that width-DERIVED position can round
+   to land a hair outside the box. Combined with `overflow-clip` (set on
+   `main`, the only current user of this utility), "a hair outside" isn't a
+   faint line — it's fully clipped away, while the left line (needing no
+   derived computation) is never at risk and stays visible. Hence: right line
+   disappears at odd zoom levels, left doesn't.
+
+   Fix: inset BOTH lines 1px from their true edge (kept symmetric on purpose,
+   even though only the right one is actually at risk) — enough slack to
+   absorb sub-pixel rounding without ever landing outside the clipped box.
+   `top 50%`/`bottom 50%`... no: `top 50%` here means "50% of the box's own
+   height", which for a vertical line is exactly center — the same vertical
+   anchor `dash-x`'s bare `left`/`right` keywords already default to.
+
+   Scoped to this one utility (not a change to `dash-x`/`dash-r` themselves)
+   so every OTHER dashed border on the site — Hero, cards, Sidebar, etc. —
+   is unaffected. They share the same underlying risk, but weren't reported
+   as broken; broadening this fix to the shared utilities is a separate,
+   bigger-blast-radius change if it turns out to be needed elsewhere too. */
+@utility dash-x-edge-safe {
+  background-image: var(--dash-v), var(--dash-v);
+  background-position: left 1px top 50%, right 1px top 50%;
+  background-size: 1px 20px, 1px 20px;
+  background-repeat: repeat-y, repeat-y;
+}
+
+/* ---------------------------------------------------------------------------
    Responsive gutter + pixel-snapped centering for the 600px content column
    ---------------------------------------------------------------------------
    Two Figma reference frames define this: the original desktop frame (1440px
@@ -166,9 +199,96 @@
    (`100%` here is the column's containing block: the area beside the sidebar,
    after `snap-gutter-r`'s padding is subtracted. round() is CSS math:
    Chrome/Arc 125+, Safari 15.4+, Firefox 118+. `max(0px, …)` floors the margin
-   at 0 for viewports narrower than 900px — not designed yet, a future mobile
-   pass owns that range; this just keeps the column from sliding under the
-   sidebar in the meantime.) */
+   at 0 for viewports narrower than 900px.)
+
+   Below the fluid tier's floor, `main` stops being a fixed 600px column
+   entirely — the sidebar is gone (replaced by MobileNavPill, a fixed-
+   position overlay outside the flex row) and there's no longer anything to
+   center against. So this utility now also owns `width` for both tiers:
+   base is fluid (100% minus a flat 16px margin each side, matching Figma
+   frame 530:77557 — verified 370 = 402 - 32, margin-left 16).
+
+   THE THRESHOLD IS 600px, NOT 480px. The Figma design's own handoff point
+   between "new fluid mobile design" and "part 2's fixed pill design" is
+   480px — but `main`'s fixed-width tier is a LITERAL `width:600px`, and a
+   600px-wide box cannot fit inside a container narrower than 600px, full
+   stop — that's not a design choice, it's arithmetic. Verified empirically:
+   below 600px, `main` (as a default flex-shrink:1 item with no min-w-0) gets
+   squeezed down to its own automatic-minimum-size floor instead of matching
+   the true (narrower) container — and because Hero's tagline ALSO switches
+   to a fixed 548px at this same tier, that floor lands at 548+48(padding)
+   = 596px, not 600, confirmed by testing the exact pixel boundary (596px:
+   no overflow; 595px: overflow). Every other "restore part 2" breakpoint in
+   this codebase (Sidebar, CaseStudyCard, CaseStudyDetail, Hero, content.ts)
+   uses 600px too, for the same reason and to keep one consistent handoff
+   point rather than a different floor per element. */
 @utility snap-center-x {
-  margin-left: max(0px, round(calc((100% - 600px) / 2), 1px));
+  width: calc(100% - 32px);
+  margin-left: 16px;
+
+  @media (min-width: 600px) {
+    width: 600px;
+    margin-left: max(0px, round(calc((100% - 600px) / 2), 1px));
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Slide-up-from-bottom entrance for the bottom-nav tiers (Sidebar's 600-900px
+   pill, MobileNavPill's <600px pill)
+   ---------------------------------------------------------------------------
+   These two elements' `min-width`/`max-width` CSS toggles what mode they're in
+   (Sidebar's <aside> is `position:sticky` in-flow at 900px+ and switches to
+   `position:fixed` bottom pill below that; MobileNavPill goes display:none<->
+   flex at the 600px boundary) — neither of those is a value a CSS `transition`
+   can interpolate: `position` is a keyword swap, not a continuous property, and
+   `display:none` has no "half-way" state a transition can animate through
+   (without much heavier machinery — @starting-style + allow-discrete — for a
+   one-directional "entrance only" ask that isn't worth that complexity here).
+
+   `animation`, unlike `transition`, doesn't need a continuous "before" value to
+   interpolate from — it just plays its keyframes the instant `animation-name`
+   starts applying to an element, REGARDLESS of what caused that (a class
+   toggle, or here, a media query starting to match). So scoping the animation
+   itself to the exact media query each pill already keys its own visibility
+   off means it plays automatically on every crossing — both "sidebar becomes
+   pill" (900px) and "pill becomes MobileNavPill" (600px) — with no JS.
+
+   `transform` here (the legacy shorthand property), not Tailwind's `translate`
+   utility: Sidebar/MobileNavPill both already use `-translate-x-1/2` (which
+   Tailwind v4 compiles to the STANDALONE `translate` CSS property) for
+   horizontal centering. `transform` and `translate` are different properties
+   that the browser composes together (translate applied first, then
+   transform) — so this keyframe's vertical slide and the existing horizontal
+   centering never fight each other, they just combine.
+
+   150% (of the element's own height, not the viewport) comfortably clears
+   both pills regardless of MobileNavPill's collapsed/expanded height — on top
+   of the existing bottom-10 (40px) inset, it starts well below the fold.
+   `both` fill mode holds the animation's final frame (translateY(0)) once it
+   completes, rather than snapping back to keyframe 0%. Entrance-only, by
+   design — matches the ask ("slides in from the bottom"); these components
+   already snap instantly on exit today, unchanged. */
+@keyframes slide-bottom-pill-in {
+  from { transform: translateY(150%); }
+  to { transform: translateY(0); }
+}
+
+@utility slide-in-tablet-pill {
+  @media (min-width: 600px) and (max-width: 899px) {
+    animation: slide-bottom-pill-in 520ms var(--ease-spring-gentle) both;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+}
+
+@utility slide-in-mobile-pill {
+  @media (max-width: 599px) {
+    animation: slide-bottom-pill-in 520ms var(--ease-spring-gentle) both;
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
 }

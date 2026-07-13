@@ -1,8 +1,10 @@
 # Dashed Borders — Deep Dive
 
 A complete walkthrough of how the dashed hairlines in this project work, line by
-line, plus the story of a subtle bug (CSS variable **inheritance**) that hid in
-this code and why it took so long to find.
+line, plus the story of two subtle bugs that hid in this code: one about CSS
+variable **inheritance** (§5), one about `background-position` percentages
+computed from an element's own **rendered size**, exposed only at unusual
+browser zoom levels (§6).
 
 All the code lives in **`src/app/globals.css`** (the `Custom dashed hairlines`
 section) and is used in `page.tsx`, `Hero.tsx`, `Stat.tsx`, and `CaseStudyCard.tsx`.
@@ -130,7 +132,7 @@ Tailwind's `border-x` / `border-y`.
 
 | Element | classes | draws |
 |---|---|---|
-| `main` (the 600px column) — `page.tsx` | `dashed dash-x` | left + right rails |
+| `main` (the 600px column) — `page.tsx` | `dash-x-edge-safe` (see §6 — *not* the plain `dashed dash-x` combo) | left + right rails |
 | tagline box — `Hero.tsx` | `dashed dash-t` | top |
 | stats row — `Hero.tsx` | `dashed dash-y` | top + bottom |
 | stat cells 2 & 3 — via `Hero.tsx` | `dashed dash-l` | left divider |
@@ -286,7 +288,112 @@ Safari 16.4+, Firefox 128+.
 
 ---
 
-## 6. Lessons to carry forward
+## 6. A second bug: the right rail vanishing at unusual browser zoom
+
+Reported symptom, on `main`'s rails specifically (`page.tsx`, the only element
+using left+right dashes at the time): **at 33% browser zoom, the left rail was
+visible but the right rail was completely gone.** Not thin, not faint — gone.
+
+### 6a. Why this isn't the same bug as §5
+
+The inheritance bug (§5) *added* extra lines — the symptom was doubling/thickening.
+This symptom is the opposite: a line that should exist simply doesn't render.
+That shape of symptom (present vs. absent, not thin vs. thick) points at
+something being **positioned outside the visible area and clipped**, not at an
+extra layer being painted.
+
+### 6b. The actual mechanism
+
+Look at the base utility's `background-position` again:
+
+```css
+background-position: top, bottom, left, right;
+```
+
+The browser resolves these keywords to explicit percentages. Checking the real
+computed style confirms it:
+
+```
+background-position: 50% 0%, 50% 100%, 0px 50%, 100% 50%;
+                      ↑top   ↑bottom   ↑left     ↑right
+```
+
+`left` resolves to a literal `0px` — a constant, never computed from anything.
+`right` resolves to `100%`, which for a 1px-wide tile the browser computes as
+`(element's rendered width) − 1px`. That's not a constant — it's **derived from
+a measurement of the box itself.**
+
+At 100% browser zoom, 1 CSS pixel maps cleanly to 1 device pixel, so that
+derived value lands on a whole device pixel and renders exactly like the
+constant-anchored left edge. At an unusual zoom level like 33%, the CSS-pixel-
+to-device-pixel ratio becomes fractional, and a value computed from a
+measurement (not typed as a literal) is far more exposed to landing on a
+sub-pixel offset than a hardcoded `0` ever is.
+
+And `main` has `overflow-clip`. That's the piece that turns "lands on a
+sub-pixel offset" into "disappears entirely" rather than "looks slightly soft."
+`overflow-clip` doesn't fade a pixel that falls fractionally outside the box —
+it removes it, all or nothing. So: the right rail's position can drift outside
+the clipped box under fractional zoom; the left rail's position, being a
+constant `0`, structurally cannot. Same tile, same zoom, same 1px size — the
+*position calculation* is what differs, and only one of the two is exposed to
+drift at all.
+
+The same logic applies to `dash-b` (`bottom`, resolved to `50% 100%` — the
+vertical component is *also* height-derived) — it just hadn't been reported
+broken for anything using `dash-y`, since nothing prompted zooming out on those
+elements specifically.
+
+### 6c. Why this one couldn't be verified with an automated repro
+
+Unlike §5 (found by dumping computed styles from a live DOM), this bug couldn't
+be reproduced with browser automation at all. Browser *zoom* (Ctrl/Cmd + −) is
+a browser-chrome feature, not a page-level DOM event — Playwright's
+`page.keyboard.press('Control+-')` sends the keypress into the page, but the
+zoom level itself lives outside anything a webpage (or a page-level automation
+API) can observe or trigger. Confirmed directly: firing that shortcut 8 times in
+a row left `window.innerWidth` completely unchanged. Approximating zoom by
+just enlarging the viewport doesn't reproduce it either — that keeps a clean
+1:1 CSS-pixel-to-device-pixel ratio, so nothing ever lands on a sub-pixel
+offset; the whole bug depends on that ratio becoming fractional, not on the
+box merely getting bigger.
+
+So this fix was implemented from the CSS reasoning above, verified to cause **no
+regression at normal zoom** (both rails still render, byte-identical position),
+but not verified against the exact reported symptom — that needed a human
+actually zooming a real browser to 33% and looking.
+
+### 6d. The fix
+
+A new, self-contained utility, used only where the bug was reported:
+
+```css
+@utility dash-x-edge-safe {
+  background-image: var(--dash-v), var(--dash-v);
+  background-position: left 1px top 50%, right 1px top 50%;
+  background-size: 1px 20px, 1px 20px;
+  background-repeat: repeat-y, repeat-y;
+}
+```
+
+Both edges get an explicit **1px inset from the true edge** — not just the
+right one, even though only the right one is actually at risk, to keep the two
+rails visually symmetric rather than one flush and one not. 1px of slack is
+enough to absorb sub-pixel rounding drift (which is by definition less than a
+full pixel) without ever landing outside the clipped box.
+
+Note what this *doesn't* do: it doesn't touch `dashed`, `dash-x`, or `dash-r`.
+Every other dashed border on the site — Hero's tagline/stats, the case-study
+cards — still uses the original, unmodified utilities and shares the same
+theoretical exposure to this bug. It just wasn't the thing that was reported,
+and folding a 1px inset into utilities used in a dozen places is a much bigger
+visual-risk decision than making it for one specific element. If this turns out
+to matter elsewhere, that's a deliberate, separate call to make later — not
+something to sneak in as a side effect of fixing `main`.
+
+---
+
+## 7. Lessons to carry forward
 
 - **CSS custom properties inherit by default.** If you use them as *element-local
   flags* (like these per-edge toggles), that's a trap waiting to spring the moment
@@ -301,10 +408,20 @@ Safari 16.4+, Firefox 128+.
 - **`background`, not `border`, when you need pixel-exact dashes** — and prefer a
   small fixed *tile* (`background-size` + `repeat`) over a stretched
   `repeating-linear-gradient`.
+- **A position computed from the element's own size is not the same as a
+  constant position**, even when both currently evaluate to "the same place."
+  One can drift under conditions (zoom, sub-pixel layouts) the other structurally
+  can't. When a hairline needs to survive an edge case, ask which of its
+  coordinates are measured vs. hardcoded.
+- **Not every bug can be automated-reproduced before fixing it.** Browser zoom
+  is real, common, and entirely outside what page-level automation can see or
+  drive. Say so plainly, verify what *can* be verified (no regression at normal
+  zoom), and ask a human to confirm the rest — that's more honest than silently
+  claiming a fix "works" when only half of it was actually checked.
 
 ---
 
-## 7. Quick reference
+## 8. Quick reference
 
 ```css
 /* turn dashes on, then pick edges (they stack) */
@@ -312,6 +429,7 @@ class="dashed dash-t"          /* top */
 class="dashed dash-y"          /* top + bottom */
 class="dashed dash-x"          /* left + right */
 class="dashed dash-b first?"   /* bottom, + dash-t on the first item */
+class="dash-x-edge-safe"       /* left + right, 1px zoom-safe inset (main only, §6) */
 ```
 
 - Tile = `linear-gradient(dir, stroke 50%, transparent 50%)` sized to `20px`
@@ -319,3 +437,7 @@ class="dashed dash-b first?"   /* bottom, + dash-t on the first item */
 - Base `dashed` = four background layers fed by `--dash-t/-b/-l/-r`.
 - Markers set those vars; `@property … inherits:false` keeps them from leaking.
 - `snap-center-x` keeps the centred column on whole pixels (separate 1px concern).
+- `dash-x-edge-safe` insets both vertical rails 1px so the width-derived right
+  edge can't round outside `main`'s `overflow-clip` boundary at odd browser
+  zoom levels (§6) — self-contained, doesn't affect `dashed`/`dash-x`/`dash-r`
+  used elsewhere.

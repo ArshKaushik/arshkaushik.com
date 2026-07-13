@@ -48,7 +48,7 @@ const renderInline = (s: string): React.ReactNode => {
 
 export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
     return (
-        <article className="flex w-[800px] min-w-0 max-w-full flex-col gap-8 dashed dash-x dash-y bg-surface p-8">
+        <article className="flex w-[800px] min-w-0 max-w-full flex-col gap-8 dashed dash-x dash-y bg-surface p-4 min-[600px]:p-8">
             {/* title + summary */}
             <div className="flex w-full flex-col gap-2">
                 <h1 className="font-serif text-[28px] text-textPrimary">
@@ -60,8 +60,15 @@ export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
             </div>
 
             {/* Visual: the study's thumbnailCover (same image as the home card),
-                cropped to fill via object-cover; an empty grey block until set. */}
-            <div className="relative h-[394px] w-full overflow-hidden bg-page">
+                cropped to fill via object-cover; an empty grey block until set.
+                aspect-[736/394] (not a fixed height): 736 = the article's
+                content width at its original 800px/p-8 size (800-64), so this
+                ratio reproduces the exact desktop height (394px) at that
+                width AND scales correctly at any narrower width the article
+                shrinks to — verified against Figma 540:90180 (370 wide,
+                198.07 tall at 402px: 198.07/370 = 394/736 to 5 significant
+                figures). Applies at every breakpoint, not just this one. */}
+            <div className="relative aspect-[736/394] w-full overflow-hidden bg-page">
                 {study.thumbnailCover && (
                     <Image
                         src={study.thumbnailCover}
@@ -76,19 +83,24 @@ export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
                 )}
             </div>
 
-            {/* Metadata table — dashed box, dashed divider between rows. */}
+            {/* Metadata table — dashed box, dashed divider between rows.
+                Below 600px (not the Figma design's nominal 480px handoff —
+                see snap-center-x's comment in globals.css for why 600 is the
+                real floor) each row stacks label-above-value (Figma
+                540:90180's stat rows show this), matching gap-2; at 600px+
+                it's the original side-by-side dt/dd row, unchanged. */}
             <dl className="flex w-full flex-col dashed dash-x dash-y">
                 {study.meta.map((row, i) => (
                     <div
                         key={row.label}
-                        className={`flex w-full items-start gap-3 p-6 ${
+                        className={`flex w-full flex-col items-start gap-2 p-6 min-[600px]:flex-row min-[600px]:items-start min-[600px]:gap-3 ${
                             i < study.meta.length - 1 ? "dashed dash-b" : ""
                         }`}
                     >
-                        <dt className="w-[120px] shrink-0 text-[14px] text-textPrimary">
+                        <dt className="w-full shrink-0 text-[14px] text-textPrimary min-[600px]:w-[120px]">
                             {renderInline(row.label)}
                         </dt>
-                        <dd className="flex-1 text-[14px] text-textSecondaryPage">
+                        <dd className="w-full text-[14px] text-textSecondaryPage min-[600px]:flex-1">
                             {renderInline(row.value)}
                         </dd>
                     </div>

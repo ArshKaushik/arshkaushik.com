@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/layout/Sidebar";
+import ClarityAnalytics from "@/components/Clarity";
 import { identity, heroTagline } from "@/lib/content";
 
 const geist = Geist({
@@ -64,6 +65,9 @@ export default function RootLayout({
                     </div>
                 </div>
                 {modal}
+                <ClarityAnalytics
+                    projectId={process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID}
+                />
             </body>
         </html>
     );

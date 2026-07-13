@@ -30,13 +30,19 @@ export default function CaseStudyCard({
     return (
         <Link
             href={`/work/${slug}`}
-            className={`group flex h-[441px] w-full flex-col items-start gap-6 dashed dash-b bg-surface p-6 ${
+            className={`group flex h-auto w-full flex-col items-start gap-6 dashed dash-b bg-surface p-6 min-[600px]:h-[441px] ${
                 isFirst ? "dash-t" : ""
             }`}
         >
             {/* Figma: "thumbnail" — image slot. Shows the study's thumbnailCover
                 image, cropped to fill via object-cover; an empty box until set.
-                `fill` needs a positioned, sized parent → relative + h/w + overflow. */}
+                `fill` needs a positioned, sized parent → relative + h/w + overflow.
+                object-left (not the object-cover default of centered): per
+                Figma, the image should stay anchored to the LEFT edge as the
+                card narrows across breakpoints, so the same content is always
+                visible there and only the right side gets progressively
+                cropped — not a symmetric center-crop that would shift what's
+                visible on both edges as the container resizes. */}
             <div className="relative h-[296px] w-full overflow-hidden bg-surface">
                 {thumbnailCover && (
                     <Image
@@ -48,39 +54,51 @@ export default function CaseStudyCard({
                         // block dragging the image out. The [-webkit-user-drag:none]
                         // class hardens it on WebKit/Blink (Chrome/Safari/Edge).
                         draggable={false}
-                        className="object-cover select-none [-webkit-user-drag:none]"
+                        className="object-cover object-left select-none [-webkit-user-drag:none]"
                     />
                 )}
             </div>
 
-            {/* Figma: "title&description".
-                `relative` makes this box the positioning context for the
-                description below (which is `absolute`). The title stays in normal
-                flow, pinned to the bottom by `justify-end`; on hover it slides up
-                to reveal the description. The 8px gap between them is produced by
-                how far the title rises: the description sits pinned at the bottom
-                (height 42px), and the title lifts by (42 + 8) = 50px, leaving
-                exactly 8px below it. NOTE: 50px is tied to the current 2-line
-                (42px) descriptions — a longer/shorter description would change the
-                needed offset (a real flex `gap-2` would be sturdier if copy varies).
-
-                Below 900px there's no hover to reveal it with (touch), so the
-                description stays permanently visible/shifted — the min-[900px]:
-                variants below are what re-gate it behind group-hover at desktop
-                widths. */}
-            <div className="relative flex h-[73px] w-full flex-col items-start justify-end">
-                {/* DESCRIPTION — always visible below 900px; fades in on hover
-                    (opacity 0 → 1) at a fixed spot at >=900px. It's `absolute` so
-                    it never pushes the title. */}
-                <p className="absolute bottom-0 left-0 w-full font-sans text-[14px] text-textSecondarySurface opacity-100 transition duration-[511ms] ease-spring-gentle motion-reduce:transition-none min-[900px]:opacity-0 min-[900px]:group-hover:opacity-100">
+            {/* Figma: "title&description". Three tiers now (600px, not the
+                Figma design's nominal 480px handoff — see snap-center-x's
+                comment in globals.css for why 600 is the real, arithmetic-
+                forced floor for every "restore part 2" breakpoint):
+                - below 600px: normal auto-height flow. Title then description
+                  just stack (order-first/order-last fixes the VISUAL order to
+                  match reading order without touching DOM order, which the
+                  wider tiers below still depend on). No magic pixel heights —
+                  the box and the card both grow to fit whatever the text needs
+                  (card heights 475/506/475px across the three studies, per
+                  Figma 530:77557 — real variation from description length,
+                  not a bug).
+                - 600-900px: today's shipped part-2 behavior, unchanged —
+                  `relative` box, fixed h-[73px], description `absolute` so it
+                  never pushes the title, title pinned to the bottom via
+                  `justify-end` then permanently shifted up 50px (no hover on
+                  touch, so it's just always in the "revealed" position). The
+                  8px gap above the description = title's 50px lift minus the
+                  description's 42px height.
+                - >=900px: same fixed-height mechanism, but hover-gated
+                  (opacity 0->1, translate 0->-50px on `group-hover`) instead
+                  of permanently revealed.
+                NOTE: 50px is tied to the 2-line (42px) description used at
+                600px+ — a longer/shorter description would change the needed
+                offset (a real flex `gap-2` would be sturdier if copy varies,
+                which is exactly why the <600px tier uses gap-2 instead). */}
+            <div className="relative flex w-full flex-col items-start gap-2 min-[600px]:h-[73px] min-[600px]:justify-end">
+                {/* DESCRIPTION — normal flow (ordered last) below 600px;
+                    absolute + always-visible at 600-900px; hover-gated
+                    (opacity 0->1) at >=900px. `absolute` at 600px+ so it
+                    never pushes the title. */}
+                <p className="order-last w-full font-sans text-[14px] text-textSecondarySurface opacity-100 transition duration-[511ms] ease-spring-gentle motion-reduce:transition-none min-[600px]:absolute min-[600px]:bottom-0 min-[600px]:left-0 min-[600px]:order-none min-[900px]:opacity-0 min-[900px]:group-hover:opacity-100">
                     {description}
                 </p>
 
-                {/* TITLE — always shifted up below 900px (to stay open above the
-                    always-visible description); slides up 50px on hover at
-                    >=900px instead, with the gentle spring (watch the slight
-                    overshoot). */}
-                <p className="w-full -translate-y-[50px] font-serif text-[24px] text-textPrimary transition duration-[511ms] ease-spring-gentle motion-reduce:transition-none min-[900px]:translate-y-0 min-[900px]:group-hover:-translate-y-[50px]">
+                {/* TITLE — normal flow (ordered first) below 600px; shifted up
+                    50px permanently at 600-900px (no hover on touch); hover-
+                    gated shift at >=900px instead, with the gentle spring
+                    (watch the slight overshoot). */}
+                <p className="order-first w-full font-serif text-[24px] text-textPrimary transition duration-[511ms] ease-spring-gentle motion-reduce:transition-none min-[600px]:order-none min-[600px]:-translate-y-[50px] min-[900px]:translate-y-0 min-[900px]:group-hover:-translate-y-[50px]">
                     {title}
                 </p>
             </div>

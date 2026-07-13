@@ -15,10 +15,19 @@ import BackNav from "./BackNav";
 // in reverse, then navigates back (which unmounts this overlay).
 //
 // Below 900px (Figma node 490:58427) this stops being an inset, dimmed modal —
-// it becomes a true full-bleed page (opaque bg-page, no padding) with its own
-// "Back" pill replacing Sidebar's. The backdrop being opaque + fixed inset-0 at
-// z-50 is what makes it cover Sidebar's own bottom pill underneath — no
-// coordination between the two components needed.
+// it becomes a true full-bleed page (opaque bg-page) with its own "Back" pill
+// replacing Sidebar's. The backdrop being opaque + fixed inset-0 at z-50 is
+// what makes it cover Sidebar's own bottom pill underneath — no coordination
+// between the two components needed. BackNav is passed this same `open` state
+// so it slides up/down in sync with the card below, instead of just instantly
+// appearing on top of Sidebar's pill the moment this overlay mounts.
+//
+// pt-20 (below 600px only): Figma 540:90180 shows an 80px gap between the
+// viewport top and the actual content (caseStudyContentArea sits at y=80
+// inside a y=0 full-bleed Overlay) — missed this when first building the
+// full-bleed tier. min-[600px]:pt-0 restores the exact part-2 value (no top
+// padding at 600-900px), and min-[900px]:py-20 (already present) overrides
+// both again for the inset desktop modal, unchanged.
 export default function CaseStudyOverlay({ study }: { study: CaseStudy }) {
     const router = useRouter();
     // `open` drives the enter/exit transition. It starts false (card off-screen,
@@ -83,12 +92,11 @@ export default function CaseStudyOverlay({ study }: { study: CaseStudy }) {
             aria-label={study.title}
             tabIndex={-1}
             onClick={close}
-            className={`fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-page px-0 pt-0 pb-[140px] outline-none transition-opacity duration-[400ms] ease-spring-gentle motion-reduce:transition-none min-[900px]:bg-overlay/12 min-[900px]:px-2.5 min-[900px]:py-20 ${
+            className={`fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-page px-0 pt-20 pb-[140px] outline-none transition-opacity duration-[400ms] ease-spring-gentle motion-reduce:transition-none min-[600px]:pt-0 min-[900px]:bg-overlay/12 min-[900px]:px-2.5 min-[900px]:py-20 ${
                 open ? "opacity-100" : "opacity-0"
             }`}
         >
-            {/* Clicks INSIDE the card must not bubble to the backdrop (which closes).
-                w-full + flex justify-center: the dialog above is flex-col +
+            {/* w-full + flex justify-center: the dialog above is flex-col +
                 items-center, so THIS div's width is a cross-axis size —
                 items-center doesn't stretch it, so without an explicit width it
                 shrink-to-fits CaseStudyDetail's 800px preferred size instead of
@@ -101,16 +109,26 @@ export default function CaseStudyOverlay({ study }: { study: CaseStudy }) {
                 against — but that also means dialog's items-center no longer
                 centers anything (this div already fills 100%), so this div
                 needs its OWN centering for its child, same as the standalone
-                page's wrapper (work/[slug]/page.tsx). */}
+                page's wrapper (work/[slug]/page.tsx).
+
+                NO onClick here (a past version had stopPropagation on this
+                div, a real bug): this div is w-full, spanning the ENTIRE
+                width of the dialog, while the card itself is narrower and
+                centered — stopping propagation here swallowed clicks in the
+                empty space left/right of the card, so the backdrop only
+                closed on click above/below the card, never beside it.
+                stopPropagation now lives on the inner wrapper below, which
+                shrink-wraps to the card's own real width. */}
             <div
-                onClick={(e) => e.stopPropagation()}
                 className={`flex w-full justify-center transition-transform duration-[520ms] ease-spring-gentle motion-reduce:transition-none ${
                     open ? "translate-y-0" : "translate-y-[100vh]"
                 }`}
             >
-                <CaseStudyDetail study={study} />
+                <div onClick={(e) => e.stopPropagation()}>
+                    <CaseStudyDetail study={study} />
+                </div>
             </div>
-            <BackNav onClick={close} />
+            <BackNav onClick={close} open={open} />
         </div>
     );
 }
