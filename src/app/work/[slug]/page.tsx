@@ -3,22 +3,16 @@ import { notFound } from "next/navigation";
 import { caseStudies } from "@/lib/case-studies";
 import { identity } from "@/lib/content";
 import { getInlineSvg } from "@/lib/inline-svg";
-import CaseStudyDetail from "@/components/case-study/CaseStudyDetail";
-import BackNav from "@/components/case-study/BackNav";
+import HomeContent from "@/components/sections/HomeContent";
+import CaseStudyOverlay from "@/components/case-study/CaseStudyOverlay";
 
 // The STANDALONE case-study page: what you get on a direct load / refresh /
 // shared link to /work/[slug] (interception only happens on soft, in-app
-// navigation). It reuses the same CaseStudyDetail card, centered in the
-// content column beside the sidebar from the root layout.
-//
-// Below 900px (Figma node 490:58427) it matches the intercepted overlay's
-// full-bleed + "Back" pill treatment instead, for visual consistency
-// regardless of how the user arrived at this URL. "Back" navigates home
-// (not router.back()) — a hard load has no client-side history to reverse.
-//
-// pt-10 below 600px, min-[600px]:pt-0 restoring 0 for 600-900px: matches
-// CaseStudyOverlay.tsx's identical fix — Figma 540:90180 shows a 40px gap
-// above the content in the full-bleed tier.
+// navigation). Renders HomeContent (the same home page markup) dimmed behind
+// CaseStudyOverlay with closeHref="/", so a hard load/refresh looks identical
+// to arriving via the intercepted overlay instead of dropping to a bare,
+// home-less page — see CaseStudyOverlay.tsx's file-level comment for the
+// closeHref mechanism.
 
 // Pre-render all three /work/<slug> pages at build time (SSG). Returning the
 // known slugs lets Next generate static HTML instead of rendering on request.
@@ -49,21 +43,14 @@ export default async function CaseStudyPage({
     const { slug } = await params;
     const study = caseStudies.find((c) => c.slug === slug);
     if (!study) notFound();
-    // Computed once and reused for both blocks below — see CaseStudyDetail's
-    // thumbnailSvg prop comment for why this isn't read inside the component.
+    // getInlineSvg touches Node's `fs` and must run here (a Server Component) —
+    // CaseStudyOverlay is "use client". See learn/svg-thumbnail-blur.md.
     const thumbnailSvg =
         study.thumbnailCover && getInlineSvg(study.thumbnailCover, "xMidYMid slice");
     return (
         <>
-            {/* >=900px: unchanged inline layout beside the sidebar */}
-            <div className="hidden w-full min-w-0 justify-center px-2.5 py-20 min-[900px]:flex">
-                <CaseStudyDetail study={study} thumbnailSvg={thumbnailSvg} />
-            </div>
-            {/* <900px: full-bleed page + bottom "Back" pill */}
-            <div className="fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-page pt-10 pb-[140px] min-[600px]:pt-0 min-[900px]:hidden">
-                <CaseStudyDetail study={study} thumbnailSvg={thumbnailSvg} />
-            </div>
-            <BackNav href="/" />
+            <HomeContent />
+            <CaseStudyOverlay study={study} thumbnailSvg={thumbnailSvg} closeHref="/" />
         </>
     );
 }

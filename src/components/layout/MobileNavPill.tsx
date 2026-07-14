@@ -14,14 +14,18 @@ import NavLink from "@/components/ui/NavLink";
 // whole responsive system; everything else so far is pure CSS breakpoints.
 // Kept as its own component (rather than folded into Sidebar.tsx) so this
 // new interactive/animation code stays isolated from the already-shipped,
-// working >=600px CSS — same trade-off already made by work/[slug]/page.tsx's
-// parallel hidden/flex blocks.
+// working >=600px CSS.
 export default function MobileNavPill({
     identity,
     navLinks,
+    hideBottomPill = false,
 }: {
     identity: { name: string; role: string };
     navLinks: { label: string; href: string }[];
+    // True on a case-study route: CaseStudyOverlay's own BackNav pill fully
+    // replaces this tier and shares its exact screen position — see
+    // Sidebar.tsx's comment for why this isn't just left to stacking order.
+    hideBottomPill?: boolean;
 }) {
     const [expanded, setExpanded] = useState(false);
     const panelId = useId();
@@ -34,7 +38,7 @@ export default function MobileNavPill({
             // off to this one.
             className={`fixed bottom-10 left-1/2 z-40 flex w-[calc(100%-72px)] -translate-x-1/2 flex-col dashed dash-x dash-y bg-surface p-6 shadow-[0px_0px_16px_3px_rgba(17,17,17,0.06)] transition-[gap] duration-[520ms] ease-spring-gentle motion-reduce:transition-none slide-in-mobile-pill min-[600px]:hidden ${
                 expanded ? "gap-5" : "gap-0"
-            }`}
+            } ${hideBottomPill ? "!hidden" : ""}`}
         >
             <div className="flex w-full items-center justify-between">
                 <div className="flex flex-col items-start gap-2 whitespace-nowrap">

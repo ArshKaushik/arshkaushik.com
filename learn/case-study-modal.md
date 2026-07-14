@@ -13,6 +13,14 @@ page" pattern in any Next.js App Router project.
 > boxes marked **▶ Next.js** explain the framework-specific pieces. Related deep
 > dives live in `learn/case-study-card-hover.md` (the card hover + spring easing)
 > and `learn/focus-visible-outline.md` (the focus-ring fix referenced in §8).
+>
+> **Superseded in one place:** point 5 below, and every "full standalone page"
+> reference after it, describe the *original* standalone-page design. It was
+> later redesigned to render the dimmed home page behind the case study there
+> too (so a refresh looks the same as arriving via soft nav) — see
+> `learn/case-study-refresh-behavior.md` for why and how. The routing mechanics
+> in this doc (interception, `default.tsx`, the closing logic in §8) are still
+> accurate; only "what the standalone page visually shows" changed.
 
 ---
 

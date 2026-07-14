@@ -46,16 +46,17 @@ src/
 ├── instrumentation-client.ts     # PostHog init (Next.js's client-instrumentation convention — no component needed)
 ├── app/                          # Routing (App Router) + global shell & styles
 │   ├── layout.tsx                #   sidebar shell, fonts, theme favicons, @modal slot, Clarity
-│   ├── page.tsx                  #   home page — stacks the sections
+│   ├── page.tsx                  #   home page — re-exports HomeContent
 │   ├── globals.css               #   Tailwind import, design tokens (@theme), custom utilities
 │   ├── @modal/                   #   parallel-route slot for the case-study overlay
 │   │   ├── default.tsx           #     slot fallback (renders nothing)
 │   │   └── (.)work/[slug]/       #     intercepts a card click → overlay over the home page
-│   └── work/[slug]/              #   standalone case-study page (direct load / shared link)
+│   └── work/[slug]/              #   direct load / refresh / shared link — renders HomeContent
+│                                  #   dimmed behind CaseStudyOverlay, same look as the soft-nav case
 ├── components/
 │   ├── Clarity.tsx               #   Microsoft Clarity init (mounted once in layout.tsx)
-│   ├── layout/                   #   Sidebar (desktop + 600-900px tablet pill), MobileNavPill (<600px, collapsible)
-│   ├── sections/                 #   Hero, CaseStudies, Footer (the page bands)
+│   ├── layout/                   #   Sidebar (route-aware, desktop + 600-900px tablet pill), MobileNavPill (<600px, collapsible)
+│   ├── sections/                 #   Hero, CaseStudies, Footer, HomeContent (composes the three, reused by both routes above)
 │   ├── ui/                       #   NavLink, Stat, CaseStudyCard (small reusable pieces)
 │   └── case-study/               #   CaseStudyDetail (shared card), CaseStudyOverlay, BackNav
 └── lib/
@@ -73,7 +74,7 @@ next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* ->
 ## Notable implementation details
 
 - **Content-driven** — page copy lives in `src/lib/content.ts` and case studies in the typed `src/lib/case-studies/` module (one file per study + a barrel `index.ts`); components render from that data, so adding a case study or link is a data edit, not a layout edit.
-- **URL-addressable case-study modal** — clicking a "Selected work" card opens the study as an overlay over the home page with its own URL (`/work/<slug>`), so it's shareable and the browser Back button closes it; loading that URL directly renders a full standalone page. Built with Next.js parallel + intercepting routes. Full walkthrough in [`learn/case-study-modal.md`](learn/case-study-modal.md).
+- **URL-addressable case-study modal** — clicking a "Selected work" card opens the study as an overlay over the home page with its own URL (`/work/<slug>`), so it's shareable and the browser Back button closes it; loading that URL directly (or refreshing mid-view) renders the same dimmed-home-behind-the-card look, closing via a real navigation instead of browser history. Built with Next.js parallel + intercepting routes. Full walkthrough in [`learn/case-study-modal.md`](learn/case-study-modal.md), with the direct-load/refresh behavior and the two navigation bugs behind it in [`learn/case-study-refresh-behavior.md`](learn/case-study-refresh-behavior.md).
 - **Design tokens** — colours and fonts are defined once in `globals.css` (`@theme`) and referenced everywhere (`bg-page`, `text-textPrimary`, etc.).
 - **Custom dashed hairlines** — the exact 10px/10px dashes from the design can't be done with `border-dashed` (the browser controls dash length), so they're painted with a small, composable background-gradient utility system. Full walkthrough in [`learn/dashed-borders.md`](learn/dashed-borders.md).
 - **Spring hover interactions** — the case-study cards and sidebar links animate with a spring easing (`--ease-spring-gentle`) sampled from Figma. Walkthrough in [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md).
@@ -124,3 +125,4 @@ The [`learn/`](learn/) folder documents the trickier pieces line-by-line — the
 - [`learn/case-study-modal.md`](learn/case-study-modal.md) — the URL-addressable case-study overlay: parallel + intercepting routes, the content schema, backdrop, and animation.
 - [`learn/focus-visible-outline.md`](learn/focus-visible-outline.md) — the stray focus-ring-on-close bug and the focus-management fix (`:focus-visible`).
 - [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md) — why the case-study SVG thumbnails looked blurry on real mobile browsers, and the fix (inline `<svg>` instead of `next/image`).
+- [`learn/case-study-refresh-behavior.md`](learn/case-study-refresh-behavior.md) — the "no way back to home" bug after refreshing mid-case-study, the desktop/mobile navigation fixes, and the redesign that makes a direct load look like the soft-nav overlay.
