@@ -7,12 +7,20 @@ import CaseStudyDetail from "./CaseStudyDetail";
 import BackNav from "./BackNav";
 
 // The dimmed overlay that presents a case study on top of the home page.
-// Rendered by the intercepted route (app/@modal/(.)work/[slug]) on a soft
-// navigation, so the home page stays mounted behind it.
+// Two callers, same presentation:
+//   • the intercepted route (app/@modal/(.)work/[slug]) on a soft navigation
+//     — the real home page is already mounted behind it, closing calls
+//     router.back() (the default below, no closeHref passed).
+//   • the standalone page (app/work/[slug]/page.tsx) on a hard load/refresh
+//     — it renders HomeContent itself (not "already mounted", just rendered
+//     alongside), and passes closeHref="/" since there's no in-app history
+//     to reverse; closing navigates there directly instead.
+// This makes a refresh mid-case-study look identical to arriving via soft
+// nav, rather than dropping to a bare, home-less standalone page.
 //
 // Motion (Figma): the backdrop fades in and the card SLIDES UP from the bottom
 // of the screen, using the shared --ease-spring-gentle spring. Closing plays it
-// in reverse, then navigates back (which unmounts this overlay).
+// in reverse, then navigates (which unmounts this overlay).
 //
 // Below 900px (Figma node 490:58427) this stops being an inset, dimmed modal —
 // it becomes a true full-bleed page (opaque bg-page) with its own "Back" pill
@@ -28,7 +36,21 @@ import BackNav from "./BackNav";
 // pass tightened it. min-[600px]:pt-0 restores the exact part-2 value (no top
 // padding at 600-900px), and min-[900px]:py-20 (already present) overrides
 // both again for the inset desktop modal, unchanged.
-export default function CaseStudyOverlay({ study }: { study: CaseStudy }) {
+export default function CaseStudyOverlay({
+    study,
+    thumbnailSvg,
+    closeHref,
+}: {
+    study: CaseStudy;
+    // Pre-rendered by the caller (a Server Component) and passed straight
+    // through to CaseStudyDetail — this component is "use client", so it
+    // can't read the thumbnail SVG file itself. See learn/svg-thumbnail-blur.md.
+    thumbnailSvg?: string | false;
+    // See the file-level comment: omitted for the intercepted-route overlay
+    // (closing calls router.back()), passed as "/" by the standalone page
+    // (closing navigates there directly instead).
+    closeHref?: string;
+}) {
     const router = useRouter();
     // `open` drives the enter/exit transition. It starts false (card off-screen,
     // backdrop transparent) and flips true on the next frame so the transition runs.
@@ -62,9 +84,12 @@ export default function CaseStudyOverlay({ study }: { study: CaseStudy }) {
         };
     }, []);
 
-    // Close: play the exit transition, then go back (which unmounts us). The ref
-    // guards against double-close (Esc + backdrop). We navigate on a timer rather
-    // than transitionend so it still works under "reduce motion" (no transition).
+    // Close: play the exit transition, then navigate (which unmounts us). The
+    // ref guards against double-close (Esc + backdrop). We navigate on a timer
+    // rather than transitionend so it still works under "reduce motion" (no
+    // transition). router.back() when there's real history to reverse (the
+    // intercepted overlay); router.push(closeHref) for the standalone page,
+    // which has none.
     const close = useCallback(() => {
         if (closingRef.current) return;
         closingRef.current = true;
@@ -72,8 +97,11 @@ export default function CaseStudyOverlay({ study }: { study: CaseStudy }) {
         const reduce = window.matchMedia(
             "(prefers-reduced-motion: reduce)",
         ).matches;
-        window.setTimeout(() => router.back(), reduce ? 0 : 520);
-    }, [router]);
+        window.setTimeout(
+            () => (closeHref ? router.push(closeHref) : router.back()),
+            reduce ? 0 : 520,
+        );
+    }, [router, closeHref]);
 
     // Esc closes.
     useEffect(() => {
@@ -125,10 +153,14 @@ export default function CaseStudyOverlay({ study }: { study: CaseStudy }) {
                 }`}
             >
                 <div onClick={(e) => e.stopPropagation()} className="min-w-0">
-                    <CaseStudyDetail study={study} />
+                    <CaseStudyDetail study={study} thumbnailSvg={thumbnailSvg} />
                 </div>
             </div>
-            <BackNav onClick={close} open={open} />
+            {closeHref ? (
+                <BackNav href={closeHref} open={open} />
+            ) : (
+                <BackNav onClick={close} open={open} />
+            )}
         </div>
     );
 }
