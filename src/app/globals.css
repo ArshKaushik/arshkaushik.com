@@ -127,39 +127,6 @@
 @utility dash-y { --dash-t: var(--dash-h); --dash-b: var(--dash-h); } /* top + bottom */
 
 /* ---------------------------------------------------------------------------
-   dash-x, but with a safety margin against a rare zoom-level rendering bug
-   ---------------------------------------------------------------------------
-   `dash-x`'s right line is positioned at `right` — computed by the browser as
-   (this box's rendered width - 1px), i.e. DERIVED from the box's own width.
-   `dash-l`'s left line sits at a literal `0` instead, needing no such
-   computation. At non-100% browser zoom (e.g. 33%), the CSS-pixel-to-device-
-   pixel ratio becomes fractional, and that width-DERIVED position can round
-   to land a hair outside the box. Combined with `overflow-clip` (set on
-   `main`, the only current user of this utility), "a hair outside" isn't a
-   faint line — it's fully clipped away, while the left line (needing no
-   derived computation) is never at risk and stays visible. Hence: right line
-   disappears at odd zoom levels, left doesn't.
-
-   Fix: inset BOTH lines 1px from their true edge (kept symmetric on purpose,
-   even though only the right one is actually at risk) — enough slack to
-   absorb sub-pixel rounding without ever landing outside the clipped box.
-   `top 50%`/`bottom 50%`... no: `top 50%` here means "50% of the box's own
-   height", which for a vertical line is exactly center — the same vertical
-   anchor `dash-x`'s bare `left`/`right` keywords already default to.
-
-   Scoped to this one utility (not a change to `dash-x`/`dash-r` themselves)
-   so every OTHER dashed border on the site — Hero, cards, Sidebar, etc. —
-   is unaffected. They share the same underlying risk, but weren't reported
-   as broken; broadening this fix to the shared utilities is a separate,
-   bigger-blast-radius change if it turns out to be needed elsewhere too. */
-@utility dash-x-edge-safe {
-  background-image: var(--dash-v), var(--dash-v);
-  background-position: left 1px top 50%, right 1px top 50%;
-  background-size: 1px 20px, 1px 20px;
-  background-repeat: repeat-y, repeat-y;
-}
-
-/* ---------------------------------------------------------------------------
    Responsive gutter + pixel-snapped centering for the 600px content column
    ---------------------------------------------------------------------------
    Two Figma reference frames define this: the original desktop frame (1440px

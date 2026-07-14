@@ -19,15 +19,24 @@ import Footer from "@/components/sections/Footer";
 //   • being ONE element, the dash pattern stays continuous top-to-bottom
 //   • after:content-[''] is required for a pseudo-element to render at all
 //   • after:pointer-events-none so the overlay never blocks clicks on the links
-//   • after:dash-x-edge-safe = left + right edges, inset 1px from the true
-//     edge as a safety margin against a rare zoom-level rendering bug (see
-//     that utility's comment in globals.css) — not the plain `dashed dash-x`
-//     combo used elsewhere on the site.
+//   • after:dashed after:dash-x = left + right edges, the same combo used
+//     elsewhere on the site (Hero, cards, Sidebar).
 // (main is `relative` so the absolute overlay is positioned against it.)
 //
-// pt-20 (below 600px only): more breathing room at this width, per Figma
-// frame 530:77557 (hero sits at y=80 there, vs. today's pt-10=40px at wider
-// tiers). min-[600px]:pt-10 restores today's exact value.
+// [overflow-clip-margin:2px] alongside overflow-clip: at non-100% browser
+// zoom (e.g. 33%), the right rail's position (`right`, derived from main's
+// own rendered width) can round to land a hair outside main's box — and
+// with a bare `overflow-clip`, "a hair outside" gets fully clipped away,
+// making that rail disappear. An earlier version fixed this by insetting
+// the rail 1px inward instead, but that permanently left a visible 1px gap
+// of white `bg-surface` beyond the rail at every zoom level. clip-margin
+// gives the clip box slack to tolerate that rounding without ever shifting
+// the rail off its true, flush edge.
+//
+// pt-10: Figma frame 530:77557 has the hero sitting at y=40, matching the
+// same pt-10=40px already used at wider tiers — so this is a single flat
+// value with no mobile-only override (an earlier design had mobile at
+// y=80/pt-20, "more breathing room" than wider tiers, but that's gone now).
 //
 // pb-[176px] (below 600px only): below 900px, Sidebar is a fixed bottom
 // pill; below 600px specifically it's MobileNavPill, which can EXPAND to
@@ -39,7 +48,7 @@ import Footer from "@/components/sections/Footer";
 // entirely once Sidebar is back to being a normal in-flow column.
 export default function Home() {
   return (
-    <main className="relative flex min-h-screen flex-col items-start gap-6 overflow-clip pt-20 pb-[176px] snap-center-x after:pointer-events-none after:absolute after:inset-0 after:content-[''] after:dash-x-edge-safe min-[600px]:pt-10 min-[600px]:pb-[140px] min-[900px]:pb-0">
+    <main className="relative flex min-h-screen flex-col items-start gap-6 overflow-clip [overflow-clip-margin:2px] pt-10 pb-[176px] snap-center-x after:pointer-events-none after:absolute after:inset-0 after:content-[''] after:dashed after:dash-x min-[600px]:pb-[140px] min-[900px]:pb-0">
       <Hero />
       <CaseStudies />
       <Footer />

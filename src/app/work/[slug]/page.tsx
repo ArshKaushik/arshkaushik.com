@@ -15,9 +15,9 @@ import BackNav from "@/components/case-study/BackNav";
 // regardless of how the user arrived at this URL. "Back" navigates home
 // (not router.back()) — a hard load has no client-side history to reverse.
 //
-// pt-20 below 600px, min-[600px]:pt-0 restoring 0 for 600-900px: matches
-// CaseStudyOverlay.tsx's identical fix — Figma 540:90180 shows an 80px gap
-// above the content in the full-bleed tier that was missed initially.
+// pt-10 below 600px, min-[600px]:pt-0 restoring 0 for 600-900px: matches
+// CaseStudyOverlay.tsx's identical fix — Figma 540:90180 shows a 40px gap
+// above the content in the full-bleed tier.
 
 // Pre-render all three /work/<slug> pages at build time (SSG). Returning the
 // known slugs lets Next generate static HTML instead of rendering on request.
@@ -55,7 +55,7 @@ export default async function CaseStudyPage({
                 <CaseStudyDetail study={study} />
             </div>
             {/* <900px: full-bleed page + bottom "Back" pill */}
-            <div className="fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-page pt-20 pb-[140px] min-[600px]:pt-0 min-[900px]:hidden">
+            <div className="fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-page pt-10 pb-[140px] min-[600px]:pt-0 min-[900px]:hidden">
                 <CaseStudyDetail study={study} />
             </div>
             <BackNav href="/" />
