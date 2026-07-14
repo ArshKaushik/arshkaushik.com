@@ -7,9 +7,11 @@ window was resized down to a "mobile" width. That last detail is the whole
 clue: it rules out CSS/breakpoints entirely and points at something tied to
 the *device*, not the *viewport*.
 
-The fix lives in **`src/lib/inline-svg.ts`** (new) and is used by
-**`src/components/ui/CaseStudyCard.tsx`** (home grid) and
-**`src/components/case-study/CaseStudyDetail.tsx`** (detail page).
+The fix lives in **`src/lib/inline-svg.ts`** (new), called from each route
+that renders a thumbnail (`CaseStudies.tsx`, `work/[slug]/page.tsx`,
+`@modal/(.)work/[slug]/page.tsx`) and threaded down as a plain string prop
+into **`CaseStudyCard.tsx`**/**`CaseStudyDetail.tsx`** — §5 explains why it's
+split up this way rather than called directly inside those two components.
 
 ---
 
@@ -149,19 +151,20 @@ export function getInlineSvg(publicPath: string, preserveAspectRatio: string): s
 }
 ```
 
-Both call sites (`CaseStudyCard.tsx`, `CaseStudyDetail.tsx`) are Server
-Components already (no `"use client"`), so a build/render-time `fs` read is
-free — the same category of thing `generateStaticParams` already does for
-SSG. Usage:
+`CaseStudyCard.tsx` and `CaseStudyDetail.tsx` are both Server Components
+themselves (no `"use client"` in either file) — but that alone isn't enough
+to safely call `getInlineSvg` *inside* them. See §5 for why, and for the
+actual final call pattern (the caller computes the string, the component just
+renders it). The shape once corrected:
 
 ```tsx
 <div className="relative h-[296px] w-full overflow-hidden bg-surface">
-    {thumbnailCover && (
+    {thumbnailSvg && (
         <div
             role="img"
             aria-label={`${title} preview`}
             className="absolute inset-0"
-            dangerouslySetInnerHTML={{ __html: getInlineSvg(thumbnailCover, "xMinYMid slice") }}
+            dangerouslySetInnerHTML={{ __html: thumbnailSvg }}
         />
     )}
 </div>
@@ -188,7 +191,87 @@ Two details worth calling out:
 
 ---
 
-## 5. Verification
+## 5. A second bug: the fix broke the Vercel build
+
+The version above — `CaseStudyCard`/`CaseStudyDetail` each calling
+`getInlineSvg` directly — passed `pnpm dev`, passed a clean visual check, and
+still **failed `pnpm build`** on the next Vercel deployment:
+
+```
+Module not found: Can't resolve 'fs'
+> 1 | import { readFileSync } from "fs";
+
+Import traces:
+  Client Component Browser:
+    ./src/lib/inline-svg.ts [Client Component Browser]
+    ./src/components/case-study/CaseStudyDetail.tsx [Client Component Browser]
+    ./src/components/case-study/CaseStudyOverlay.tsx [Client Component Browser]
+```
+
+### Why `pnpm dev` didn't catch it
+
+Turbopack's dev server compiles routes on demand, lazily, as they're
+visited — the intercepted `@modal` route (the one that pulls `CaseStudyDetail`
+into a client bundle, see below) simply hadn't been hit yet in the session
+that "passed." `pnpm build` compiles every route up front, so it's the only
+reliable way to catch a bundling error like this locally — a clean `pnpm dev`
+session proves nothing about routes you haven't navigated to.
+
+### The actual mechanism
+
+`CaseStudyDetail` is a plain Server Component with no `"use client"` of its
+own — but it's rendered in two different contexts:
+
+- directly inside `work/[slug]/page.tsx` (a Server Component) — fine on its
+  own.
+- inside `CaseStudyOverlay.tsx`, which **is** `"use client"`.
+
+React's Server/Client Component model doesn't let a Client Component import
+an arbitrary module and trust it'll only ever execute on the server — once
+`CaseStudyOverlay` (client) directly renders `<CaseStudyDetail />`, everything
+`CaseStudyDetail` imports has to be resolvable in the **client** bundle too,
+including `inline-svg.ts`, including `fs`. Browsers don't have `fs`. Build
+fails — for the *whole* app, not just the overlay path, because it's one
+shared module.
+
+This is the same shape of bug as `§5` in `learn/dashed-borders.md` (a
+different file, coincidental numbering): a mechanism that operates on the
+*module graph*, invisible from reading either component's own JSX in
+isolation. `CaseStudyDetail.tsx` never mentions the client boundary; you only
+see it by tracing *who renders this component*.
+
+### The fix: compute the string above the client boundary, pass it as a prop
+
+Move every `getInlineSvg` call up to the nearest genuine Server Component
+that isn't itself reachable from a client-rendered tree, and pass the
+resulting **string** down as an ordinary prop — a plain string is fine to
+hand to a Client Component; it's the `fs`-touching *function* that isn't.
+
+```tsx
+// src/app/@modal/(.)work/[slug]/page.tsx — a Server Component
+const thumbnailSvg =
+    study.thumbnailCover && getInlineSvg(study.thumbnailCover, "xMidYMid slice");
+return <CaseStudyOverlay study={study} thumbnailSvg={thumbnailSvg} />;
+```
+
+```tsx
+// CaseStudyOverlay.tsx — "use client"; just forwards the string, never
+// imports inline-svg.ts itself
+<CaseStudyDetail study={study} thumbnailSvg={thumbnailSvg} />
+```
+
+`CaseStudyDetail` and `CaseStudyCard` no longer import `inline-svg.ts` at
+all — they just render whatever string they're handed. Even though
+`CaseStudyCard` was never actually reachable from a client tree (only
+`CaseStudyDetail` was), it was switched to the same pattern anyway: leaving
+one sibling compute-its-own-SVG and the other receive-it-as-a-prop is exactly
+the kind of asymmetry that invites someone to "fix" it back into this bug
+later, the moment `CaseStudyCard` ends up rendered from a client component
+too.
+
+---
+
+## 6. Verification
 
 Re-ran the same before/after WebKit comparison against the actual dev
 server after the change landed (not just the isolated test file), and
@@ -196,13 +279,19 @@ separately loaded the real home page and a case-study detail page in
 Chromium at `deviceScaleFactor: 3` — the same body text that was mush
 through `<img>` (`"v1.4.0"`, `"Migrated entire color palette from hex/HSL to
 perceptually uniform OKLCH color space"`, sidebar nav items) was fully
-legible. No visual regression in crop/position, no console/build errors, and
-`tsc --noEmit` stayed clean after removing the `next/image` imports from both
-files.
+legible. No visual regression in crop/position, no console errors, and
+`tsc --noEmit` stayed clean.
+
+After §5's fix, verification also had to include the thing that actually
+broke: a full **`pnpm build`** (not just `pnpm dev`) locally, confirming all
+four routes compile — `/`, the intercepted `(.)work/[slug]`, and the static
+`/work/[slug]` pages — followed by `next start` against the real production
+output and a curl/DOM check that both the home cards and a case-study detail
+page still contain the expected inline `<svg>` markup.
 
 ---
 
-## 6. Lessons to carry forward
+## 7. Lessons to carry forward
 
 - **"Sharp on desktop, blurry on mobile, resizing the desktop window doesn't
   change anything" is a strong signal to stop thinking about CSS/breakpoints
@@ -234,10 +323,21 @@ files.
   worth it here since these files were already being fetched per-view
   anyway, and correctness/sharpness mattered more than that tradeoff for a
   handful of hero-ish showcase images.
+- **A Server Component isn't automatically safe to import a `fs`-touching
+  module from — check who renders it, not just what it declares.** A
+  component with no `"use client"` at the top can still end up bundled for
+  the browser if *any* client component renders it directly. The rule to
+  actually check: trace every place a component is rendered, not just the
+  file itself.
+- **`pnpm dev` did not catch this; only a full `pnpm build` did.** Turbopack
+  dev compiles routes lazily as you visit them — a route you never navigated
+  to in that session tells you nothing. Build errors that are really about
+  bundling/module-graph shape need the full, non-lazy build to surface
+  locally, before Vercel finds them for you.
 
 ---
 
-## 7. Quick reference
+## 8. Quick reference
 
 ```ts
 // src/lib/inline-svg.ts — read a trusted local SVG, adapt it for inline embedding
@@ -245,7 +345,12 @@ getInlineSvg(publicPath: string, preserveAspectRatio: string): string
 ```
 
 ```tsx
-<div role="img" aria-label="..." dangerouslySetInnerHTML={{ __html: getInlineSvg(path, "xMinYMid slice") }} />
+// Call getInlineSvg in a Server Component NOT reachable from a client tree —
+// e.g. the route/page that renders CaseStudyOverlay, not CaseStudyOverlay
+// itself. Pass the resulting string down as a prop.
+const thumbnailSvg = thumbnailCover && getInlineSvg(thumbnailCover, "xMinYMid slice");
+
+<div role="img" aria-label="..." dangerouslySetInnerHTML={{ __html: thumbnailSvg }} />
 ```
 
 - Blurry only on real mobile, fine on desktop-resized-narrow → think DPR/engine,
@@ -258,3 +363,7 @@ getInlineSvg(publicPath: string, preserveAspectRatio: string): string
   `<img>`/`next/image`. `preserveAspectRatio` (`xMinYMid slice` / `xMidYMid slice`)
   replaces `object-fit`/`object-position`. Re-add the accessible name via
   `role="img"`/`aria-label` on the wrapper + `aria-hidden` on the injected SVG.
+- **Call the `fs`-reading helper only from a Server Component that's never
+  rendered by a `"use client"` component** — pass the resulting string down
+  as a prop instead of importing the helper deeper in the tree. Verify with a
+  full `pnpm build`, not just `pnpm dev`.

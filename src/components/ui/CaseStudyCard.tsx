@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { getInlineSvg } from "@/lib/inline-svg";
 
 // Figma component: "caseStudyCard" — an image slot with a serif title beneath.
 // The whole card is a Link to /work/[slug]; clicking it opens that study's
@@ -18,13 +17,16 @@ export default function CaseStudyCard({
     slug,
     title,
     description,
-    thumbnailCover,
+    thumbnailSvg,
     isFirst = false,
 }: {
     slug: string;
     title: string;
     description: string;
-    thumbnailCover?: string;
+    // Pre-rendered inline <svg> markup (see inline-svg.ts). Computed by the
+    // caller (a Server Component) rather than here, since this component is
+    // also reachable from client-rendered trees and can't touch Node's `fs`.
+    thumbnailSvg?: string | false;
     isFirst?: boolean;
 }) {
     return (
@@ -45,14 +47,12 @@ export default function CaseStudyCard({
                 symmetric center-crop that would shift what's visible on both
                 edges as the container resizes. */}
             <div className="relative h-[296px] w-full overflow-hidden bg-surface">
-                {thumbnailCover && (
+                {thumbnailSvg && (
                     <div
                         role="img"
                         aria-label={`${title} preview`}
                         className="absolute inset-0"
-                        dangerouslySetInnerHTML={{
-                            __html: getInlineSvg(thumbnailCover, "xMinYMid slice"),
-                        }}
+                        dangerouslySetInnerHTML={{ __html: thumbnailSvg }}
                     />
                 )}
             </div>

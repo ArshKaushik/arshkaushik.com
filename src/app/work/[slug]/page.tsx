@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { caseStudies } from "@/lib/case-studies";
 import { identity } from "@/lib/content";
+import { getInlineSvg } from "@/lib/inline-svg";
 import CaseStudyDetail from "@/components/case-study/CaseStudyDetail";
 import BackNav from "@/components/case-study/BackNav";
 
@@ -48,15 +49,19 @@ export default async function CaseStudyPage({
     const { slug } = await params;
     const study = caseStudies.find((c) => c.slug === slug);
     if (!study) notFound();
+    // Computed once and reused for both blocks below — see CaseStudyDetail's
+    // thumbnailSvg prop comment for why this isn't read inside the component.
+    const thumbnailSvg =
+        study.thumbnailCover && getInlineSvg(study.thumbnailCover, "xMidYMid slice");
     return (
         <>
             {/* >=900px: unchanged inline layout beside the sidebar */}
             <div className="hidden w-full min-w-0 justify-center px-2.5 py-20 min-[900px]:flex">
-                <CaseStudyDetail study={study} />
+                <CaseStudyDetail study={study} thumbnailSvg={thumbnailSvg} />
             </div>
             {/* <900px: full-bleed page + bottom "Back" pill */}
             <div className="fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-page pt-10 pb-[140px] min-[600px]:pt-0 min-[900px]:hidden">
-                <CaseStudyDetail study={study} />
+                <CaseStudyDetail study={study} thumbnailSvg={thumbnailSvg} />
             </div>
             <BackNav href="/" />
         </>

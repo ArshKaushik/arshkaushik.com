@@ -1,5 +1,4 @@
 import type { CaseStudy, CaseStudyPoint } from "@/lib/case-studies";
-import { getInlineSvg } from "@/lib/inline-svg";
 
 // The case-study content card (Figma node 273-440). Presentational + reused by
 // BOTH the overlay (app/@modal) and the full page (app/work/[slug]).
@@ -46,7 +45,17 @@ const renderInline = (s: string): React.ReactNode => {
     return nodes.length === 1 ? nodes[0] : nodes;
 };
 
-export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
+export default function CaseStudyDetail({
+    study,
+    thumbnailSvg,
+}: {
+    study: CaseStudy;
+    // Pre-rendered inline <svg> markup (see inline-svg.ts). Computed by the
+    // caller rather than here: this component is rendered by CaseStudyOverlay,
+    // a "use client" component, and Node's `fs` (used to read the SVG file)
+    // can't be bundled for the browser — see learn/svg-thumbnail-blur.md.
+    thumbnailSvg?: string | false;
+}) {
     return (
         <article className="flex w-[800px] min-w-0 max-w-full flex-col gap-8 dashed dash-x dash-y bg-surface p-4 min-[600px]:p-8">
             {/* title + summary */}
@@ -70,14 +79,12 @@ export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
                 198.07 tall at 402px: 198.07/370 = 394/736 to 5 significant
                 figures). Applies at every breakpoint, not just this one. */}
             <div className="relative aspect-[736/394] w-full overflow-hidden bg-page">
-                {study.thumbnailCover && (
+                {thumbnailSvg && (
                     <div
                         role="img"
                         aria-label={study.title}
                         className="absolute inset-0"
-                        dangerouslySetInnerHTML={{
-                            __html: getInlineSvg(study.thumbnailCover, "xMidYMid slice"),
-                        }}
+                        dangerouslySetInnerHTML={{ __html: thumbnailSvg }}
                     />
                 )}
             </div>

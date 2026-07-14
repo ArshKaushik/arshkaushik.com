@@ -28,7 +28,16 @@ import BackNav from "./BackNav";
 // pass tightened it. min-[600px]:pt-0 restores the exact part-2 value (no top
 // padding at 600-900px), and min-[900px]:py-20 (already present) overrides
 // both again for the inset desktop modal, unchanged.
-export default function CaseStudyOverlay({ study }: { study: CaseStudy }) {
+export default function CaseStudyOverlay({
+    study,
+    thumbnailSvg,
+}: {
+    study: CaseStudy;
+    // Pre-rendered by the caller (a Server Component) and passed straight
+    // through to CaseStudyDetail — this component is "use client", so it
+    // can't read the thumbnail SVG file itself. See learn/svg-thumbnail-blur.md.
+    thumbnailSvg?: string | false;
+}) {
     const router = useRouter();
     // `open` drives the enter/exit transition. It starts false (card off-screen,
     // backdrop transparent) and flips true on the next frame so the transition runs.
@@ -125,7 +134,7 @@ export default function CaseStudyOverlay({ study }: { study: CaseStudy }) {
                 }`}
             >
                 <div onClick={(e) => e.stopPropagation()} className="min-w-0">
-                    <CaseStudyDetail study={study} />
+                    <CaseStudyDetail study={study} thumbnailSvg={thumbnailSvg} />
                 </div>
             </div>
             <BackNav onClick={close} open={open} />
