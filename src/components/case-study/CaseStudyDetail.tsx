@@ -1,5 +1,5 @@
 import type { CaseStudy, CaseStudyPoint } from "@/lib/case-studies";
-import Image from "next/image";
+import { getInlineSvg } from "@/lib/inline-svg";
 
 // The case-study content card (Figma node 273-440). Presentational + reused by
 // BOTH the overlay (app/@modal) and the full page (app/work/[slug]).
@@ -59,8 +59,9 @@ export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
                 </p>
             </div>
 
-            {/* Visual: the study's thumbnailCover (same image as the home card),
-                cropped to fill via object-cover; an empty grey block until set.
+            {/* Visual: the study's thumbnailCover (same SVG as the home card),
+                cropped to fill; an empty grey block until set. Rendered as
+                inline <svg> (not next/image) — see inline-svg.ts for why.
                 aspect-[736/394] (not a fixed height): 736 = the article's
                 content width at its original 800px/p-8 size (800-64), so this
                 ratio reproduces the exact desktop height (394px) at that
@@ -70,15 +71,13 @@ export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
                 figures). Applies at every breakpoint, not just this one. */}
             <div className="relative aspect-[736/394] w-full overflow-hidden bg-page">
                 {study.thumbnailCover && (
-                    <Image
-                        src={study.thumbnailCover}
-                        alt={study.title}
-                        fill
-                        sizes="736px"
-                        // draggable={false} blocks dragging the image out (works
-                        // cross-browser); [-webkit-user-drag:none] hardens WebKit.
-                        draggable={false}
-                        className="object-cover select-none [-webkit-user-drag:none]"
+                    <div
+                        role="img"
+                        aria-label={study.title}
+                        className="absolute inset-0"
+                        dangerouslySetInnerHTML={{
+                            __html: getInlineSvg(study.thumbnailCover, "xMidYMid slice"),
+                        }}
                     />
                 )}
             </div>

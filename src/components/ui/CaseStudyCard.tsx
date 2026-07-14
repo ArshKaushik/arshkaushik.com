@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import { getInlineSvg } from "@/lib/inline-svg";
 
 // Figma component: "caseStudyCard" — an image slot with a serif title beneath.
 // The whole card is a Link to /work/[slug]; clicking it opens that study's
@@ -35,26 +35,24 @@ export default function CaseStudyCard({
             }`}
         >
             {/* Figma: "thumbnail" — image slot. Shows the study's thumbnailCover
-                image, cropped to fill via object-cover; an empty box until set.
-                `fill` needs a positioned, sized parent → relative + h/w + overflow.
-                object-left (not the object-cover default of centered): per
-                Figma, the image should stay anchored to the LEFT edge as the
-                card narrows across breakpoints, so the same content is always
-                visible there and only the right side gets progressively
-                cropped — not a symmetric center-crop that would shift what's
-                visible on both edges as the container resizes. */}
+                SVG, cropped to fill; an empty box until set. Rendered as
+                inline <svg> (not next/image) — see inline-svg.ts for why.
+                preserveAspectRatio="xMinYMid slice" = SVG's own equivalent of
+                object-cover + object-left: per Figma, the image should stay
+                anchored to the LEFT edge as the card narrows across
+                breakpoints, so the same content is always visible there and
+                only the right side gets progressively cropped — not a
+                symmetric center-crop that would shift what's visible on both
+                edges as the container resizes. */}
             <div className="relative h-[296px] w-full overflow-hidden bg-surface">
                 {thumbnailCover && (
-                    <Image
-                        src={thumbnailCover}
-                        alt={`${title} preview`}
-                        fill
-                        sizes="600px"
-                        // draggable={false} = the reliable, cross-browser way to
-                        // block dragging the image out. The [-webkit-user-drag:none]
-                        // class hardens it on WebKit/Blink (Chrome/Safari/Edge).
-                        draggable={false}
-                        className="object-cover object-left select-none [-webkit-user-drag:none]"
+                    <div
+                        role="img"
+                        aria-label={`${title} preview`}
+                        className="absolute inset-0"
+                        dangerouslySetInnerHTML={{
+                            __html: getInlineSvg(thumbnailCover, "xMinYMid slice"),
+                        }}
                     />
                 )}
             </div>

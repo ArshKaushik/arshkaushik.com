@@ -60,6 +60,7 @@ src/
 │   └── case-study/               #   CaseStudyDetail (shared card), CaseStudyOverlay, BackNav
 └── lib/
     ├── content.ts                # Page copy (identity, nav, hero) as data
+    ├── inline-svg.ts             # Reads a trusted local SVG for inline embedding (avoids next/image's mobile-blur bug)
     └── case-studies/             # Case-study content module — typed schema, one file per study
 
 learn/                            # Deep-dive docs explaining non-trivial implementations
@@ -77,6 +78,7 @@ next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* ->
 - **Custom dashed hairlines** — the exact 10px/10px dashes from the design can't be done with `border-dashed` (the browser controls dash length), so they're painted with a small, composable background-gradient utility system. Full walkthrough in [`learn/dashed-borders.md`](learn/dashed-borders.md).
 - **Spring hover interactions** — the case-study cards and sidebar links animate with a spring easing (`--ease-spring-gentle`) sampled from Figma. Walkthrough in [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md).
 - **Theme-aware favicons** — the browser tab icon switches with the OS/browser colour scheme via `prefers-color-scheme` (light/dark PNGs wired through the Next.js Metadata API in `layout.tsx`).
+- **Inline SVG thumbnails, not `next/image`** — the case-study thumbnails are large, hand-illustrated SVGs; `next/image`'s default config forces them into a bare, un-optimized `<img>` tag that rendered visibly blurry on real mobile browsers (Safari and Chrome-on-iOS — both WebKit). They're rendered as inline `<svg>` markup instead (`src/lib/inline-svg.ts`), which sidesteps the browser's image-decode pipeline entirely. Full write-up in [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md).
 - **Fully responsive, three tiers** — see the dedicated [Responsive design](#responsive-design) section below for the breakpoints, why they land where they do, and the mechanism behind each one.
 - **Analytics run production-only** — both Clarity (`src/components/Clarity.tsx`) and PostHog (`src/instrumentation-client.ts`) no-op under `pnpm dev`, so local testing never pollutes real visitor data. PostHog is proxied through this site's own domain (`/ingest/*`, see `next.config.ts`) rather than calling posthog.com directly, since ad-blockers commonly block the latter but not same-origin traffic.
 
@@ -121,3 +123,4 @@ The [`learn/`](learn/) folder documents the trickier pieces line-by-line — the
 - [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md) — the spring-based hover reveal (title slide + description fade).
 - [`learn/case-study-modal.md`](learn/case-study-modal.md) — the URL-addressable case-study overlay: parallel + intercepting routes, the content schema, backdrop, and animation.
 - [`learn/focus-visible-outline.md`](learn/focus-visible-outline.md) — the stray focus-ring-on-close bug and the focus-management fix (`:focus-visible`).
+- [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md) — why the case-study SVG thumbnails looked blurry on real mobile browsers, and the fix (inline `<svg>` instead of `next/image`).
