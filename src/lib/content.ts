@@ -4,10 +4,10 @@ export const identity = {
 };
 
 export const navLinks: { label: string; href: string }[] = [
-    { label: "Resume", href: "#" },
-    { label: "LinkedIn", href: "#" },
-    { label: "GitHub", href: "#" },
-    { label: "Email", href: "#" },
+    { label: "Resume", href: "https://drive.google.com/file/d/1xNfit0vVxvwP9IuHDVszUhwiyMJdn8wb/view?usp=sharing" },
+    { label: "LinkedIn", href: "https://www.linkedin.com/in/arshkaushik21/" },
+    { label: "GitHub", href: "https://github.com/ArshKaushik" },
+    { label: "Email", href: "mailto:arshkaushik21@gmail.com" },
 ];
 
 export const heroTagline =

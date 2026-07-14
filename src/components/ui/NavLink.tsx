@@ -42,13 +42,20 @@ export const navLinkClassName =
 
 export default function NavLink({
   href,
+  target,
   children,
 }: {
   href: string;
+  target?: string;
   children: React.ReactNode;
 }) {
   return (
-    <Link href={href} className={navLinkClassName}>
+    <Link
+      href={href}
+      target={target}
+      rel={target === "_blank" ? "noopener noreferrer" : undefined}
+      className={navLinkClassName}
+    >
       {children}
     </Link>
   );

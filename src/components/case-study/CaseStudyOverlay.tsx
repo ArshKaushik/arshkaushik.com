@@ -22,10 +22,10 @@ import BackNav from "./BackNav";
 // so it slides up/down in sync with the card below, instead of just instantly
 // appearing on top of Sidebar's pill the moment this overlay mounts.
 //
-// pt-20 (below 600px only): Figma 540:90180 shows an 80px gap between the
-// viewport top and the actual content (caseStudyContentArea sits at y=80
-// inside a y=0 full-bleed Overlay) — missed this when first building the
-// full-bleed tier. min-[600px]:pt-0 restores the exact part-2 value (no top
+// pt-10 (below 600px only): Figma 540:90180 now shows a 40px gap between the
+// viewport top and the actual content (caseStudyContentArea sits at y=40
+// inside a y=0 full-bleed Overlay) — was 80px/pt-20 before a later design
+// pass tightened it. min-[600px]:pt-0 restores the exact part-2 value (no top
 // padding at 600-900px), and min-[900px]:py-20 (already present) overrides
 // both again for the inset desktop modal, unchanged.
 export default function CaseStudyOverlay({ study }: { study: CaseStudy }) {
@@ -92,7 +92,7 @@ export default function CaseStudyOverlay({ study }: { study: CaseStudy }) {
             aria-label={study.title}
             tabIndex={-1}
             onClick={close}
-            className={`fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-page px-0 pt-20 pb-[140px] outline-none transition-opacity duration-[400ms] ease-spring-gentle motion-reduce:transition-none min-[600px]:pt-0 min-[900px]:bg-overlay/12 min-[900px]:px-2.5 min-[900px]:py-20 ${
+            className={`fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-page px-0 pt-10 pb-[140px] outline-none transition-opacity duration-[400ms] ease-spring-gentle motion-reduce:transition-none min-[600px]:pt-0 min-[900px]:bg-overlay/12 min-[900px]:px-2.5 min-[900px]:py-20 ${
                 open ? "opacity-100" : "opacity-0"
             }`}
         >
@@ -124,7 +124,7 @@ export default function CaseStudyOverlay({ study }: { study: CaseStudy }) {
                     open ? "translate-y-0" : "translate-y-[100vh]"
                 }`}
             >
-                <div onClick={(e) => e.stopPropagation()}>
+                <div onClick={(e) => e.stopPropagation()} className="min-w-0">
                     <CaseStudyDetail study={study} />
                 </div>
             </div>

@@ -31,7 +31,7 @@ export default function Sidebar() {
 
                 <nav className="flex items-start gap-4 min-[900px]:w-full min-[900px]:flex-col min-[900px]:gap-2">
                     {navLinks.map((link) => (
-                        <NavLink key={link.label} href={link.href}>
+                        <NavLink key={link.label} href={link.href} target="_blank">
                             {link.label}
                         </NavLink>
                     ))}

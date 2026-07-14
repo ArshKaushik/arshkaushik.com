@@ -114,7 +114,7 @@ export default function MobileNavPill({
                     track's 0fr size with no residual floor of its own. */}
                 <nav className="flex w-full min-h-0 flex-wrap items-start justify-between gap-4 overflow-hidden">
                     {navLinks.map((link) => (
-                        <NavLink key={link.label} href={link.href}>
+                        <NavLink key={link.label} href={link.href} target="_blank">
                             {link.label}
                         </NavLink>
                     ))}
