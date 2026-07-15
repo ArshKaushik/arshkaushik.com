@@ -22,7 +22,9 @@
      damping (friction) is low relative to stiffness (pull), the value shoots
      toward its target, slightly OVERSHOOTS, then settles back — that tiny bounce
      is the "gentle" feel. (The ~511ms "duration" is derived: it's how long the
-     spring takes to settle, not a number anyone typed.)
+     spring takes to settle, not a number anyone typed. Site-wide it's rounded
+     to a single 520ms token — every transition/animation uses duration-[520ms]
+     with this curve, so there's exactly one motion pace to reason about.)
 
      WHY linear(...) AND NOT cubic-bezier(...)
      A cubic-bezier can only draw an S-curve that never passes its endpoints, so

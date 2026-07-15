@@ -26,5 +26,11 @@ if (process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_POSTHOG_KEY
         api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST,
         ui_host: "https://us.posthog.com",
         defaults: "2026-05-30",
+        // This site runs no PostHog surveys, but by default posthog-js still
+        // downloads the surveys module (~32KB, measured 82% unused by
+        // Lighthouse) on every visit. Opting out skips that request entirely;
+        // events, pageviews, and session replay are unaffected. Delete this
+        // line if a survey is ever created in the PostHog dashboard.
+        disable_surveys: true,
     });
 }

@@ -22,7 +22,9 @@ export const heroTagline =
 export const stats: { label: string; value: string; width?: string }[] = [
     { label: "Best lift", value: "Support tickets -50%" },
     {
-        label: "Ships in",
+        // "Builds with", not the earlier "Ships in": that label parsed as a
+        // duration ("ships in 2 weeks") before it parsed as a toolchain.
+        label: "Builds with",
         value: "Figma + Next.js",
         width: "min-[600px]:w-[192px]",
     },

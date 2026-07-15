@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { caseStudies } from "@/lib/case-studies";
-import { getInlineSvg } from "@/lib/inline-svg";
 import CaseStudyOverlay from "@/components/case-study/CaseStudyOverlay";
 
 // INTERCEPTED route. `(.)work/[slug]` catches a SOFT navigation to /work/[slug]
@@ -17,10 +16,5 @@ export default async function CaseStudyModal({
     const { slug } = await params;
     const study = caseStudies.find((c) => c.slug === slug);
     if (!study) notFound();
-    // getInlineSvg touches Node's `fs` and must run here (a Server Component) —
-    // CaseStudyOverlay is "use client", so it can only receive the already-
-    // rendered markup as a prop. See learn/svg-thumbnail-blur.md.
-    const thumbnailSvg =
-        study.thumbnailCover && getInlineSvg(study.thumbnailCover, "xMidYMid slice");
-    return <CaseStudyOverlay study={study} thumbnailSvg={thumbnailSvg} />;
+    return <CaseStudyOverlay study={study} />;
 }

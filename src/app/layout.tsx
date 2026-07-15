@@ -18,8 +18,30 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
+    // Base for resolving every relative URL below (and the og:image URLs the
+    // opengraph-image.tsx file convention generates) into absolute ones —
+    // social crawlers reject relative URLs.
+    metadataBase: new URL("https://arshkaushik.com"),
     title: `${identity.name} | ${identity.role}`,
     description: `${heroTagline}`,
+    // Open Graph + Twitter cards: without these, a pasted link (LinkedIn DM,
+    // job application, Slack) unfurls as a bare URL with no preview — the
+    // worst possible first impression for a portfolio distributed via links.
+    // The image itself comes from src/app/opengraph-image.tsx (and the
+    // per-study variant under work/[slug]/) — Next injects those og:image
+    // tags automatically, so no `images` field is needed here.
+    openGraph: {
+        type: "website",
+        siteName: identity.name,
+        url: "/",
+        title: `${identity.name} | ${identity.role}`,
+        description: heroTagline,
+    },
+    twitter: {
+        card: "summary_large_image",
+        title: `${identity.name} | ${identity.role}`,
+        description: heroTagline,
+    },
     // Theme-aware favicon. Next renders these as <link rel="icon"> tags.
     // The browser only exposes a coarse light/dark preference
     // (prefers-color-scheme), which we map to the two icons:
@@ -55,10 +77,27 @@ export default function RootLayout({
             lang="en"
             className={`${geist.variable} ${instrumentSerif.variable}`}
         >
+            {/* suppressHydrationWarning: browser extensions (Grammarly,
+                password managers, dark-mode extensions…) inject attributes
+                into <body> before React hydrates, which would otherwise log
+                spurious mismatch warnings. Scoped to this element only — it
+                does NOT suppress warnings in children, so real hydration bugs
+                elsewhere still surface. */}
             <body
                 className="bg-page text-textPrimary font-sans antialiased"
                 suppressHydrationWarning
             >
+                {/* Skip link — the page's FIRST focusable element, so the
+                    first Tab press offers keyboard users a jump past the
+                    sidebar's five stops straight to the content (#content =
+                    HomeContent's <main>). sr-only keeps it invisible until
+                    focused; the pill styling only ever paints in that state. */}
+                <a
+                    href="#content"
+                    className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] dashed dash-x dash-y bg-surface p-4 text-[14px] text-textPrimary shadow-[0px_0px_16px_3px_rgba(17,17,17,0.06)]"
+                >
+                    Skip to content
+                </a>
                 <div className="flex min-h-screen items-start">
                     <Sidebar />
                     <div className="flex min-w-0 flex-1 items-start snap-gutter-r">

@@ -99,6 +99,12 @@ export default function MobileNavPill({
                 content height) + 24 = 136px — matches Figma. */}
             <div
                 id={panelId}
+                // inert while collapsed: the 0fr track + overflow-hidden only
+                // hide the links VISUALLY — without this they'd stay in the
+                // tab order, so a keyboard user would Tab through four
+                // invisible stops. inert removes them from focus order and
+                // the accessibility tree until the panel is actually open.
+                inert={!expanded}
                 className={`grid w-full transition-[grid-template-rows] duration-[520ms] ease-spring-gentle motion-reduce:transition-none ${
                     expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
                 }`}

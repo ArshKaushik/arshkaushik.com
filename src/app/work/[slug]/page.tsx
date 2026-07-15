@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { caseStudies } from "@/lib/case-studies";
 import { identity } from "@/lib/content";
-import { getInlineSvg } from "@/lib/inline-svg";
 import HomeContent from "@/components/sections/HomeContent";
 import CaseStudyOverlay from "@/components/case-study/CaseStudyOverlay";
 
@@ -20,7 +19,10 @@ export function generateStaticParams() {
     return caseStudies.map((study) => ({ slug: study.slug }));
 }
 
-// Per-page <title>/<meta description> for shared links & SEO.
+// Per-page <title>/<meta description> for shared links & SEO, plus Open
+// Graph / Twitter card data so a pasted link unfurls with a real preview.
+// The og:image itself comes from the sibling opengraph-image.tsx file
+// convention — Next wires it up automatically, no `images` field needed.
 export async function generateMetadata({
     params,
 }: {
@@ -29,9 +31,21 @@ export async function generateMetadata({
     const { slug } = await params;
     const study = caseStudies.find((c) => c.slug === slug);
     if (!study) return {};
+    const title = `${study.title} — ${identity.name}`;
     return {
-        title: `${study.title} — ${identity.name}`,
+        title,
         description: study.summary,
+        openGraph: {
+            title,
+            description: study.summary,
+            url: `/work/${study.slug}`,
+            type: "article",
+        },
+        twitter: {
+            card: "summary_large_image",
+            title,
+            description: study.summary,
+        },
     };
 }
 
@@ -43,14 +57,10 @@ export default async function CaseStudyPage({
     const { slug } = await params;
     const study = caseStudies.find((c) => c.slug === slug);
     if (!study) notFound();
-    // getInlineSvg touches Node's `fs` and must run here (a Server Component) —
-    // CaseStudyOverlay is "use client". See learn/svg-thumbnail-blur.md.
-    const thumbnailSvg =
-        study.thumbnailCover && getInlineSvg(study.thumbnailCover, "xMidYMid slice");
     return (
         <>
             <HomeContent />
-            <CaseStudyOverlay study={study} thumbnailSvg={thumbnailSvg} closeHref="/" />
+            <CaseStudyOverlay study={study} closeHref="/" />
         </>
     );
 }

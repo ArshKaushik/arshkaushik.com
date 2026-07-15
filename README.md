@@ -1,128 +1,145 @@
-# arshkaushik.com
+# arshkaushik.com — branch `v1.1-fable5-exp`
 
-Personal portfolio for **Arsh Kaushik**, implemented from a Figma design.
+> **This README is a record of what was done on this branch**, not the general
+> project overview. `v1.1-fable5-exp` is a sandbox branched off `main` to run a
+> rigorous, model-driven review of the portfolio (using Claude Fable 5) and then
+> fix the findings. The full project overview lives on `main`'s README; this file
+> exists so future-me can see exactly what happened here.
 
-## Tech stack
+**Base:** branched off `main` (last shared commit: `f148ddc`).
+**State:** all work below is committed on this branch. **Not merged to `main`, not
+deployed** — the live site keeps `main`'s behavior until this is merged/pushed to prod.
+**Site itself is unchanged in kind** — same Next.js 16 / React / Tailwind v4 / TS
+portfolio; this branch is a quality/perf/a11y pass plus the review paper trail.
 
-- **Next.js 16** (App Router)
-- **TypeScript**
-- **Tailwind CSS v4** — CSS-first config via `@theme` in `globals.css` (no `tailwind.config` file)
-- **pnpm**
-- Fonts via `next/font`: **Instrument Serif** (display) + **Geist** (UI)
-- Analytics: **Microsoft Clarity** + **PostHog** — both running side by side (session replay + heatmaps in each) to compare before picking one long-term
+---
 
-## Getting started
+## What this branch is
 
-```bash
-pnpm install
-pnpm dev        # dev server at http://localhost:3000
-```
+Two things: (1) a **review** of the site across three lenses, and (2) the **fixes**
+for what the review found. Everything the review produced and every fix is written
+up under [`fable5-check/`](fable5-check/) (see the index below).
 
-Other scripts:
+### The review (3 lenses + a follow-up)
 
-```bash
-pnpm build      # production build
-pnpm start      # serve the production build
-pnpm lint       # ESLint
-```
-
-### Environment variables
-
-Analytics are gated to production only (see `src/components/Clarity.tsx` /
-`src/instrumentation-client.ts`), so none of this is required for `pnpm dev` —
-only for a production build/deploy to actually report data. Create a
-`.env.local` (gitignored) with:
-
-```bash
-NEXT_PUBLIC_CLARITY_PROJECT_ID=<clarity project id>
-NEXT_PUBLIC_POSTHOG_KEY=<posthog project api key, phc_...>
-NEXT_PUBLIC_POSTHOG_HOST=/ingest   # relative — proxied by next.config.ts, not posthog.com directly
-```
-
-## Project structure
-
-```
-src/
-├── instrumentation-client.ts     # PostHog init (Next.js's client-instrumentation convention — no component needed)
-├── app/                          # Routing (App Router) + global shell & styles
-│   ├── layout.tsx                #   sidebar shell, fonts, theme favicons, @modal slot, Clarity
-│   ├── page.tsx                  #   home page — re-exports HomeContent
-│   ├── globals.css               #   Tailwind import, design tokens (@theme), custom utilities
-│   ├── @modal/                   #   parallel-route slot for the case-study overlay
-│   │   ├── default.tsx           #     slot fallback (renders nothing)
-│   │   └── (.)work/[slug]/       #     intercepts a card click → overlay over the home page
-│   └── work/[slug]/              #   direct load / refresh / shared link — renders HomeContent
-│                                  #   dimmed behind CaseStudyOverlay, same look as the soft-nav case
-├── components/
-│   ├── Clarity.tsx               #   Microsoft Clarity init (mounted once in layout.tsx)
-│   ├── layout/                   #   Sidebar (route-aware, desktop + 600-900px tablet pill), MobileNavPill (<600px, collapsible)
-│   ├── sections/                 #   Hero, CaseStudies, Footer, HomeContent (composes the three, reused by both routes above)
-│   ├── ui/                       #   NavLink, Stat, CaseStudyCard (small reusable pieces)
-│   └── case-study/               #   CaseStudyDetail (shared card), CaseStudyOverlay, BackNav
-└── lib/
-    ├── content.ts                # Page copy (identity, nav, hero) as data
-    ├── inline-svg.ts             # Reads a trusted local SVG for inline embedding (avoids next/image's mobile-blur bug)
-    └── case-studies/             # Case-study content module — typed schema, one file per study
-
-learn/                            # Deep-dive docs explaining non-trivial implementations
-public/                           # Static assets (incl. theme-aware favicons)
-next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* -> PostHog US Cloud)
-```
-
-**Mental model:** `app/` = pages & routing · `components/` = reusable building blocks · `lib/` = content/data · `learn/` = write-ups.
-
-## Notable implementation details
-
-- **Content-driven** — page copy lives in `src/lib/content.ts` and case studies in the typed `src/lib/case-studies/` module (one file per study + a barrel `index.ts`); components render from that data, so adding a case study or link is a data edit, not a layout edit.
-- **URL-addressable case-study modal** — clicking a "Selected work" card opens the study as an overlay over the home page with its own URL (`/work/<slug>`), so it's shareable and the browser Back button closes it; loading that URL directly (or refreshing mid-view) renders the same dimmed-home-behind-the-card look, closing via a real navigation instead of browser history. Built with Next.js parallel + intercepting routes. Full walkthrough in [`learn/case-study-modal.md`](learn/case-study-modal.md), with the direct-load/refresh behavior and the two navigation bugs behind it in [`learn/case-study-refresh-behavior.md`](learn/case-study-refresh-behavior.md).
-- **Design tokens** — colours and fonts are defined once in `globals.css` (`@theme`) and referenced everywhere (`bg-page`, `text-textPrimary`, etc.).
-- **Custom dashed hairlines** — the exact 10px/10px dashes from the design can't be done with `border-dashed` (the browser controls dash length), so they're painted with a small, composable background-gradient utility system. Full walkthrough in [`learn/dashed-borders.md`](learn/dashed-borders.md).
-- **Spring hover interactions** — the case-study cards and sidebar links animate with a spring easing (`--ease-spring-gentle`) sampled from Figma. Walkthrough in [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md).
-- **Theme-aware favicons** — the browser tab icon switches with the OS/browser colour scheme via `prefers-color-scheme` (light/dark PNGs wired through the Next.js Metadata API in `layout.tsx`).
-- **Inline SVG thumbnails, not `next/image`** — the case-study thumbnails are large, hand-illustrated SVGs; `next/image`'s default config forces them into a bare, un-optimized `<img>` tag that rendered visibly blurry on real mobile browsers (Safari and Chrome-on-iOS — both WebKit). They're rendered as inline `<svg>` markup instead (`src/lib/inline-svg.ts`), which sidesteps the browser's image-decode pipeline entirely. Full write-up in [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md).
-- **Fully responsive, three tiers** — see the dedicated [Responsive design](#responsive-design) section below for the breakpoints, why they land where they do, and the mechanism behind each one.
-- **Analytics run production-only** — both Clarity (`src/components/Clarity.tsx`) and PostHog (`src/instrumentation-client.ts`) no-op under `pnpm dev`, so local testing never pollutes real visitor data. PostHog is proxied through this site's own domain (`/ingest/*`, see `next.config.ts`) rather than calling posthog.com directly, since ad-blockers commonly block the latter but not same-origin traffic.
-
-## Responsive design
-
-The layout is fully responsive across **three breakpoint tiers**, built and verified as three separate phases against Figma references at each width — not one flat mobile-first pass — because the design changes *mechanism*, not just size, at each tier.
-
-### The three tiers
-
-| Width | What changes | Key file(s) |
+| Doc | Lens | Headline verdict |
 |---|---|---|
-| **≥900px** | True desktop: a fixed 260px sidebar, `position: sticky` in the flex row alongside a fixed 600px content column | `Sidebar.tsx` |
-| **600–900px** | The sidebar becomes a `position: fixed`, always-expanded bottom pill (identity + all 4 links in one row); the content column goes full-bleed | `Sidebar.tsx` — same component, `min-[600px]:`/`min-[900px]:` variants |
-| **<600px** | The pill collapses further to identity + a tappable chevron, links hidden until expanded; case-study cards and the detail view switch from fixed-height to auto-height layouts | `MobileNavPill.tsx`, `CaseStudyCard.tsx`, `CaseStudyDetail.tsx` |
+| `01-1-code-review.md` | Engineering / performance / code quality | **Architecturally clean, catastrophically heavy** — home page was 11.2 MB of HTML because the Figma-export SVG thumbnails (text outlined into thousands of paths, up to 3.4 MB each) were inlined twice per page. |
+| `02-1-ux-motion-design-review.md` | Motion / interaction / UI craft | **A real motion system, undermined by mechanics** — coherent spring easing and reduced-motion coverage, but a dead click before the overlay, a font-size hover that reflowed layout, hover-only reveals with no keyboard path, no visible modal close. |
+| `03-candidate-assessment.md` | Senior-PD candidacy, 2026 market | **Emerging senior** — 🟢 at bar for early-stage/founding, 🟡 approaching for scale-up/big-tech ladders; AI/tooling fluency 🔵 above bar. Gates are legibility/consistency, not the work. |
+| `04-post-fixed-assessment.md` | Lighthouse / speed (after fixes) | **Fast, passes Lighthouse** — Perf 92/94/100, A11y 100, SEO 100, CLS 0. Best Practices 73, entirely the analytics stack (Microsoft Clarity's third-party cookies). |
 
-Below 402px (Figma's actual reference width for the mobile tier) there's no fourth breakpoint — every measurement in the `<600px` tier is already expressed as `calc(100% - Npx)` / `w-full` rather than a fixed pixel value, so it keeps scaling correctly on narrower phones with no extra code.
+Framing that shaped the review: **intentional compression** — case studies are
+deliberately kept to high-signal key points, so depth gaps are treated as
+*interview-readiness* items, never portfolio flaws.
 
-### Why 600px, and not Figma's nominal 480/402px
+---
 
-Figma's own design intent puts the mobile-tier handoff at 480px (drawn at a 402px reference, meant to fill up to 480). But `main`'s wider tier is a literal `width: 600px`, and a 600px-wide box cannot fit inside a container narrower than 600px — that's arithmetic, not a design choice. Verified empirically: at exactly 596px there's no overflow; at 595px there is (the real floor, driven by `main`'s 600px column plus Hero's fixed 548px tagline). Every "restore the wider tier" breakpoint in this codebase (`Sidebar`, `MobileNavPill`, `CaseStudyCard`, `CaseStudyDetail`, `Hero`, `content.ts`) uses 600px consistently for this reason — see the comment on `snap-center-x` in `globals.css` for the full derivation.
+## What was fixed on this branch
 
-### Mechanism, tier by tier
+### 1. Page weight (the P0) — 11.2 MB → ~36 KB HTML
 
-- **Sidebar → bottom pill → collapsible pill.** `Sidebar.tsx` owns the whole `≥600px` range as one component (`min-[900px]:` variants swap it between a `fixed` bottom pill and a sticky in-flow column); `MobileNavPill.tsx` is a separate `"use client"` component for `<600px` — the first genuinely interactive state in the layout (a chevron button toggling the links panel). Its open/close animation uses `grid-template-rows: 0fr ↔ 1fr`, the standard CSS-only way to animate to/from an intrinsic "auto" height with no JS measurement.
-- **Case-study cards.** At `≥600px` the description sits `absolute` beneath a fixed-height title box (permanently revealed at 600–900px, hover-gated at 900px+); below 600px it's plain auto-height flow (`order-first`/`order-last` fixes the visual reading order without touching DOM order, which the wider tiers' hover mechanics still depend on).
-- **Case-study detail.** The thumbnail uses `aspect-[736/394]` instead of a fixed pixel height (verified mathematically identical to the old desktop value, and correct at every width in between); the metadata table stacks label-above-value below 600px instead of side-by-side.
-- **Hero.** The tagline drops its fixed 548px width below 600px; the stats row switches `flex-row` → `flex-col` (a real fix, not just fidelity — the fixed-width cells would otherwise squeeze the flexible first cell down to near-zero at in-between widths).
+- Ran **SVGO** on the three `public/thumbnails/*.svg` exports (cut them 70–77%), but
+  the biggest was still 776 KB, so all three were rasterized to **2× WebP**
+  (`public/thumbnails/*.webp`, 64–94 KB each) and served through **`next/image`**.
+- Deleted `src/lib/inline-svg.ts` (the old inline-SVG pipeline) — with it went the
+  last `fs` import in `src/`. `CaseStudyCard`, `CaseStudyDetail`, `CaseStudies`, and
+  both `work/[slug]` route files now pass a `/thumbnails/*.webp` path instead of
+  pre-rendered SVG markup. `thumbnailCover` in the three `case-studies/*.ts` now `.webp`.
+- **Result:** home page **11.2 MB → 35.9 KB HTML (5.7 KB gzipped, ~650× smaller)**;
+  heaviest case-study page 18.1 MB → ~52 KB. Optimized source SVGs are kept in
+  `public/thumbnails/` as the design source of truth.
+- Note: this re-enters the old WebKit `<img>`-SVG blur territory (see
+  `learn/svg-thumbnail-blur.md`) — 2× resolution should be crisp, **but needs a real
+  iPhone check** (logged in `01-2-code-review-fix.md`).
 
-### Animated breakpoint transitions
+### 2. Social-share metadata + SEO
 
-Crossing the 900px/600px thresholds used to be an instant snap — pure CSS media-query swaps of `position` (`sticky ↔ fixed`) and `display` (`none ↔ flex`), neither of which a CSS `transition` can animate (there's no continuous value to interpolate between). Both pills now play a slide-up-from-below entrance instead, via a CSS `@keyframes` scoped to each pill's own media query in `globals.css` — an `animation` (unlike a `transition`) plays from scratch the instant `animation-name` starts applying to an element, regardless of what caused that, media query included. Opening a case study slides `BackNav` in sync with the card, reusing `CaseStudyOverlay`'s existing `open` boolean rather than a second animation state.
+- `layout.tsx`: `metadataBase`, Open Graph + Twitter (`summary_large_image`) tags.
+- `work/[slug]/page.tsx` `generateMetadata`: per-study OG/Twitter.
+- New **build-time `next/og` images**: `src/app/opengraph-image.tsx` (root) and
+  `src/app/work/[slug]/opengraph-image.tsx` (per-study), on-brand dashed cards in
+  Instrument Serif via `src/lib/og-fonts.ts` (build-time font fetch, try/caught).
+- New `src/app/sitemap.ts` and `src/app/robots.ts`.
 
-## Status
+### 3. Accessibility
 
-**Live at [arshkaushik.com](https://arshkaushik.com)** — deployed on Vercel (DNS via Cloudflare), fully responsive across all three breakpoint tiers, with Clarity + PostHog analytics running in production.
+- **Focus containment:** `CaseStudyOverlay` walks up from the dialog and sets `inert`
+  on every sibling at each level — real focus trapping that works for both the
+  soft-nav (`@modal`) and hard-load DOM shapes.
+- **Backdrop close** only fires when the *press started* on the backdrop (not a
+  text-selection drag ending outside the card, not a scrollbar interaction).
+- Collapsed `MobileNavPill` links get `inert` — no longer four invisible tab stops.
+- **Heading outline:** Hero `p`→`h1`, "Selected work" `p`→`h2`, card title `p`→`h3`
+  (Tailwind preflight resets heading styles, so they render identically).
+- **Keyboard parity:** `group-focus-visible` variants mirror the card hover reveal.
+- **Skip link** in `layout.tsx` (first focusable element) → `#content` on `HomeContent`'s `<main>`.
 
-## Learn docs
+### 4. Motion polish
 
-The [`learn/`](learn/) folder documents the trickier pieces line-by-line — the reasoning behind the code and, where relevant, the debugging story:
+- **NavLink hover** no longer animates `font-size` (layout reflow every frame, which
+  shuffled neighbors in the bottom pill). Now `scale-[1.1667]` (= 14/12, visually
+  identical) with `origin-left`, on the compositor. Tailwind v4 trap: `scale-*`
+  compiles to the standalone `scale` property, so the transition is `transition-[color,scale]`.
+  `BackNav` inherits via the shared `navLinkClassName`.
+- **One duration everywhere:** unified `511ms` and the backdrop's `400ms` → single
+  **`520ms`** token on the one `--ease-spring-gentle` curve.
+- Inline case-study links joined the motion system (spring + `motion-reduce`).
+- Double-`requestAnimationFrame` on the overlay enter (guarantees a painted closed frame first).
 
-- [`learn/dashed-borders.md`](learn/dashed-borders.md) — the dashed-hairline system and the CSS variable-inheritance bug behind it.
-- [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md) — the spring-based hover reveal (title slide + description fade).
-- [`learn/case-study-modal.md`](learn/case-study-modal.md) — the URL-addressable case-study overlay: parallel + intercepting routes, the content schema, backdrop, and animation.
-- [`learn/focus-visible-outline.md`](learn/focus-visible-outline.md) — the stray focus-ring-on-close bug and the focus-management fix (`:focus-visible`).
-- [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md) — why the case-study SVG thumbnails looked blurry on real mobile browsers, and the fix (inline `<svg>` instead of `next/image`).
-- [`learn/case-study-refresh-behavior.md`](learn/case-study-refresh-behavior.md) — the "no way back to home" bug after refreshing mid-case-study, the desktop/mobile navigation fixes, and the redesign that makes a direct load look like the soft-nav overlay.
+### 5. Reading comfort + copy
+
+- `leading-relaxed` (1.625) on the case-study long-form copy — **deliberately not** on
+  the home-card description, whose 600–900px layout math needs exactly 2×21px lines.
+- Hero stat label **"Ships in" → "Builds with"** (`content.ts`) — "ships in" garden-paths
+  as a duration before it reads as a toolchain.
+
+### 6. Misc / P2
+
+- Scroll-lock now pads the body by the scrollbar width (no sideways jump on
+  classic-scrollbar platforms).
+- Overlay close uses `router.replace` (Back button doesn't return to the just-closed study).
+- Branded 404 (`src/app/not-found.tsx`).
+- Documented `suppressHydrationWarning`; fixed the misleading `eslint.config.mjs` comment.
+
+### 7. Analytics (Lighthouse follow-up)
+
+- `disable_surveys: true` in `instrumentation-client.ts` — PostHog was fetching a
+  ~32 KB `surveys.js` (82% unused) on every visit. Unused JS **115 → 90 KiB**; replay
+  comparison unaffected.
+
+---
+
+## Deferred / intentionally left alone
+
+- **Analytics stack** (Clarity + PostHog side-by-side) — kept running by decision. The
+  ~25 Best-Practices-point cost of Clarity's third-party cookies is documented, not fixed.
+- **`deck` field** on case studies — authored but unrendered; left as-is by decision.
+- **Visible design/copy** — the desktop modal **close button** and an **end-of-study
+  footer** were proposed and **skipped**: Arsh designs those himself. Documented with the
+  one-line change each would take if wanted later.
+
+---
+
+## `fable5-check/` — the paper trail
+
+The review + fix docs use an `NN-1` (findings) / `NN-2` (fix log) naming convention:
+
+- [`00-PROMPT.md`](fable5-check/00-PROMPT.md) — the review brief.
+- [`01-1-code-review.md`](fable5-check/01-1-code-review.md) / [`01-2-code-review-fix.md`](fable5-check/01-2-code-review-fix.md) — engineering findings + fix log.
+- [`02-1-ux-motion-design-review.md`](fable5-check/02-1-ux-motion-design-review.md) / [`02-2-ux-motion-design-review-fix.md`](fable5-check/02-2-ux-motion-design-review-fix.md) — UX/motion findings + fix log.
+- [`03-candidate-assessment.md`](fable5-check/03-candidate-assessment.md) — senior-PD candidacy assessment (personal).
+- [`04-post-fixed-assessment.md`](fable5-check/04-post-fixed-assessment.md) — Lighthouse audit after the fixes.
+
+`arsh-kaushik-resume.pdf` and `linkedin-profile.pdf` were the source artifacts the
+candidate assessment was read against.
+
+---
+
+## Verification (this branch)
+
+`pnpm build` ✅ (12/12 static pages) · `pnpm lint` ✅ · `npx tsc --noEmit` ✅.
+Lighthouse (headless Chrome, production build): Perf 92 (mobile) / 100 (desktop),
+A11y 100, SEO 100, Best Practices 73, CLS 0, mobile FCP 0.8 s.
+
+**Open item:** iPhone crispness check on the new 2× WebP thumbnails (WebKit blur history).
