@@ -4,6 +4,7 @@ import "./globals.css";
 import Sidebar from "@/components/layout/Sidebar";
 import ClarityAnalytics from "@/components/Clarity";
 import { identity, heroTagline } from "@/lib/content";
+import { Analytics } from "@vercel/analytics/next";
 
 const geist = Geist({
     variable: "--font-geist",
@@ -68,6 +69,7 @@ export default function RootLayout({
                 <ClarityAnalytics
                     projectId={process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID}
                 />
+                <Analytics />
             </body>
         </html>
     );
