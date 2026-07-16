@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { caseStudies } from "@/lib/case-studies";
 import { identity } from "@/lib/content";
+import { getInlineSvg } from "@/lib/inline-svg";
 import HomeContent from "@/components/sections/HomeContent";
 import CaseStudyOverlay from "@/components/case-study/CaseStudyOverlay";
 
@@ -57,10 +58,14 @@ export default async function CaseStudyPage({
     const { slug } = await params;
     const study = caseStudies.find((c) => c.slug === slug);
     if (!study) notFound();
+    // getInlineSvg touches Node's `fs` and must run here (a Server Component) —
+    // CaseStudyOverlay is "use client". See learn/svg-thumbnail-blur.md.
+    const thumbnailSvg =
+        study.thumbnailCover && getInlineSvg(study.thumbnailCover, "xMidYMid slice");
     return (
         <>
             <HomeContent />
-            <CaseStudyOverlay study={study} closeHref="/" />
+            <CaseStudyOverlay study={study} thumbnailSvg={thumbnailSvg} closeHref="/" />
         </>
     );
 }

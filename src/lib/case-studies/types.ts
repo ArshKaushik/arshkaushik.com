@@ -26,10 +26,13 @@ export type CaseStudy = {
     deck: string;
     /** Short teaser for the home "Selected work" card */
     summary: string;
-    /** One image used for BOTH the home card thumbnail and the detail-view
-     *  visual. Path under /public, e.g. "/thumbnails/design-system.png".
-     *  Optional; each slot falls back to an empty box when unset. Rendered with
-     *  object-cover, so the same image crops to fill each slot's size. */
+    /** One SVG illustration used for BOTH the home card thumbnail and the
+     *  detail-view visual. Path under /public, e.g.
+     *  "/thumbnails/designSystem.svg" — read server-side by getInlineSvg()
+     *  and embedded as inline <svg> markup (the only pixel-crisp pipeline;
+     *  see learn/svg-thumbnail-blur.md). Optional; each slot falls back to
+     *  an empty box when unset. Cropping is per-slot via
+     *  preserveAspectRatio, chosen by the caller. */
     thumbnailCover?: string;
     /** Metadata table rows, in order */
     meta: CaseStudyMeta[];

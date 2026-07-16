@@ -8,7 +8,7 @@ export const connectorConfig: CaseStudy = {
     deck: "The first user research ever run on the connector-configuration flow — distilled into three features that let users set up a data source on their own.",
     summary:
         "Research-led redesign of a five-step data-configuration flow — replacing jargon and dead ends with a path data stewards could follow alone. Support tickets fell 50%.",
-    thumbnailCover: "/thumbnails/connectorConfig.webp",
+    thumbnailCover: "/thumbnails/connectorConfig.svg",
     meta: [
         {
             label: "Role",

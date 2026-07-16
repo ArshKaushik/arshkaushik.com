@@ -38,9 +38,15 @@ import BackNav from "./BackNav";
 // both again for the inset desktop modal, unchanged.
 export default function CaseStudyOverlay({
     study,
+    thumbnailSvg,
     closeHref,
 }: {
     study: CaseStudy;
+    // Pre-rendered inline <svg> markup for the study's thumbnail, computed by
+    // the server-component caller — this file is "use client", so it can only
+    // forward the string; it must never import inline-svg.ts itself (Node's
+    // `fs` can't be bundled for the browser — learn/svg-thumbnail-blur.md §5).
+    thumbnailSvg?: string | false;
     // See the file-level comment: omitted for the intercepted-route overlay
     // (closing calls router.back()), passed as "/" by the standalone page
     // (closing navigates there directly instead).
@@ -237,7 +243,7 @@ export default function CaseStudyOverlay({
                     onClick={(e) => e.stopPropagation()}
                     className="min-w-0"
                 >
-                    <CaseStudyDetail study={study} />
+                    <CaseStudyDetail study={study} thumbnailSvg={thumbnailSvg} />
                 </div>
             </div>
             {closeHref ? (

@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 
 // Figma component: "caseStudyCard" — an image slot with a serif title beneath.
@@ -21,14 +20,16 @@ export default function CaseStudyCard({
     slug,
     title,
     description,
-    thumbnailSrc,
+    thumbnailSvg,
     isFirst = false,
 }: {
     slug: string;
     title: string;
     description: string;
-    /** Path under /public to the study's 2x WebP thumbnail (study.thumbnailCover). */
-    thumbnailSrc?: string;
+    // Pre-rendered inline <svg> markup (see inline-svg.ts). Computed by the
+    // caller (a Server Component) rather than here, since this component is
+    // also reachable from client-rendered trees and can't touch Node's `fs`.
+    thumbnailSvg?: string | false;
     isFirst?: boolean;
 }) {
     return (
@@ -39,27 +40,28 @@ export default function CaseStudyCard({
             }`}
         >
             {/* Figma: "thumbnail" — image slot. Shows the study's thumbnailCover
-                (a 2x-resolution WebP raster of the original Figma illustration),
-                cropped to fill via next/image; an empty box until set.
-                `object-left` = keep the image anchored to the LEFT edge as the
-                card narrows across breakpoints, so the same content is always
-                visible there and only the right side gets progressively
-                cropped — not a symmetric center-crop that would shift what's
-                visible on both edges as the container resizes. (This replaces
-                the old inline-SVG path — the raw Figma SVGs had all text
-                outlined into vector paths and weighed 1-3.4MB each, putting
-                the home page at 11MB of HTML. History: learn/svg-thumbnail-blur.md.)
-                `priority` on the first card: it's the likely LCP element on
-                the home page, so preload it instead of lazy-loading. */}
+                SVG, cropped to fill; an empty box until set. Rendered as
+                inline <svg> — the ONLY approach that measured pixel-crisp in
+                every engine/DPR cell (learn/svg-thumbnail-blur.md §3), and it
+                stays crisp under browser zoom and scaled macOS displays where
+                any raster goes soft. Two raster generations were tried and
+                rejected on visual quality (§1-§8: <img src=svg> WebKit blur;
+                §9: WebP softness) — Arsh's call: the page-weight cost of
+                inlining is accepted for now, quality wins (§10).
+                preserveAspectRatio="xMinYMid slice" = SVG's own equivalent of
+                object-cover + object-left: per Figma, the image should stay
+                anchored to the LEFT edge as the card narrows across
+                breakpoints, so the same content is always visible there and
+                only the right side gets progressively cropped — not a
+                symmetric center-crop that would shift what's visible on both
+                edges as the container resizes. */}
             <div className="relative h-[296px] w-full overflow-hidden bg-surface">
-                {thumbnailSrc && (
-                    <Image
-                        src={thumbnailSrc}
-                        alt={`${title} preview`}
-                        fill
-                        sizes="(max-width: 600px) calc(100vw - 80px), 552px"
-                        priority={isFirst}
-                        className="object-cover object-left"
+                {thumbnailSvg && (
+                    <div
+                        role="img"
+                        aria-label={`${title} preview`}
+                        className="absolute inset-0"
+                        dangerouslySetInnerHTML={{ __html: thumbnailSvg }}
                     />
                 )}
             </div>

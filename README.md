@@ -49,9 +49,70 @@ deliberately kept to high-signal key points, so depth gaps are treated as
 - **Result:** home page **11.2 MB → 35.9 KB HTML (5.7 KB gzipped, ~650× smaller)**;
   heaviest case-study page 18.1 MB → ~52 KB. Optimized source SVGs are kept in
   `public/thumbnails/` as the design source of truth.
-- Note: this re-enters the old WebKit `<img>`-SVG blur territory (see
-  `learn/svg-thumbnail-blur.md`) — 2× resolution should be crisp, **but needs a real
-  iPhone check** (logged in `01-2-code-review-fix.md`).
+- Note: this re-entered the old WebKit `<img>`-SVG blur territory (see
+  `learn/svg-thumbnail-blur.md`) — and the real-eyes check indeed caught blur; see 1b.
+
+### 1b. Thumbnail blur, round two — exact-size WebPs, optimizer bypassed
+
+Arsh's visual QA on the single-2×-WebP-via-`next/image` pipeline found the
+thumbnails "a bit blurred / uncrisp". Root cause (full write-up in
+`learn/svg-thumbnail-blur.md` §9): the served raster never matched the painted
+device pixels — `next/image`'s optimizer resized the 1472px master to generic
+breakpoints and re-encoded at quality 75, the browser then resampled *that*
+again, and a `sizes` bug (`calc(100vw - 80px)` on a fixed-height, object-cover
+box whose drawn width is always ~552 CSS px) made 3× phones upscale outright.
+
+The fix removes every runtime resample:
+
+- **`scripts/render-thumbnails.mjs`** (new, `pnpm thumbs`, `sharp` as a
+  devDependency) renders each SVG master natively at every size the layout
+  draws — 552/1104/1656 for the home card (1×/2×/3× of the fixed 552×296
+  drawn box) and 736/1072/1472/2208 at the detail hero's 736:394 aspect —
+  as **near-lossless WebP** (measured smaller *and* sharper than lossy q90
+  for this flat-color art). 21 files, ~997 KB total.
+- `CaseStudyCard` / `CaseStudyDetail` now render a plain **`<img srcset>`**
+  over those exact files instead of `next/image` — the browser picks the
+  exact file it paints (verified via Playwright WebKit + Chromium at DPR
+  1/2/3, phone/iPad/desktop viewports: every combination selects the
+  predicted file and paints it 1:1). The card's `sizes` is the constant
+  `"552px"` its cover-crop geometry actually draws, which fixes the phone
+  upscale. `fetchPriority="high"` / `loading="lazy"` keep the LCP-preload and
+  lazy-load behavior `next/image` provided.
+- `thumbnailCover` (a `.webp` path) became **`thumbnailBase`** (a base path;
+  components append `-<width>.webp` from their own ladder).
+- With its last two users gone, the **`next/image` client runtime (−18.2 KB
+  gzip) dropped out** — total JS is back at the pre-raster baseline — and the
+  site no longer consumes Vercel image-optimizer transformations.
+
+### 1c. Final call: back to inline SVG — quality over page weight
+
+Arsh reviewed the exact-size raster pipeline and still judged the thumbnails
+"uncrisp / slightly blurry" against the inline-SVG era, and made the explicit
+call: **visual quality wins; the page-weight cost is accepted for now** (to be
+revisited later). Even a 1:1-painted raster is librsvg's antialiasing frozen at
+fixed sizes — it can't match the engine's own vector paint, and it goes soft
+under browser zoom or scaled-display modes where inline SVG stays perfect
+(the one approach that measured crisp in *every* cell of the
+`learn/svg-thumbnail-blur.md` §3 matrix).
+
+- The inline-SVG pipeline is restored: `src/lib/inline-svg.ts` is back, called
+  from `CaseStudies.tsx` / `work/[slug]/page.tsx` / the `@modal` route,
+  threaded as a `thumbnailSvg` string prop into `CaseStudyCard` /
+  `CaseStudyDetail` (`thumbnailBase` → `thumbnailCover`, now `.svg` paths).
+  All of §1's a11y/SEO/motion fixes are untouched.
+- The **SVGO'd masters** keep the damage far below the original 11.2 MB:
+  home is **2.9 MB raw / 538 KB gzip**; heaviest study page 4.5 MB / 835 KB
+  gzip (was 18.1 MB). `next/image` stays out of the bundle.
+- The exact-size raster tooling **remains in the repo** (`pnpm thumbs`,
+  `scripts/render-thumbnails.mjs`, `sharp` devDep) for whenever the weight
+  problem is revisited — the generated WebPs themselves were removed from
+  `public/`.
+- Two learn docs carry the full story: `learn/svg-thumbnail-blur.md` (the
+  three-act investigation, §1–§10) and the new
+  **`learn/inline-svg-thumbnails-explained.md`** — a junior-dev-level,
+  line-by-line walkthrough of the old raster code vs. the final inline-SVG
+  code (server/client boundary, `dangerouslySetInnerHTML`, `preserveAspectRatio`,
+  `srcset`/`sizes`, and the gotchas checklist).
 
 ### 2. Social-share metadata + SEO
 
@@ -138,8 +199,17 @@ candidate assessment was read against.
 
 ## Verification (this branch)
 
-`pnpm build` ✅ (12/12 static pages) · `pnpm lint` ✅ · `npx tsc --noEmit` ✅.
+`pnpm build` ✅ (12/12 static pages) · `pnpm lint` ✅ · `npx tsc --noEmit` ✅ —
+all three re-run clean after the §1c inline-SVG restore (the full build matters:
+it's the only check that catches the `fs`-in-client-bundle trap, per
+`learn/svg-thumbnail-blur.md` §5). Playwright (WebKit + Chromium, DPR 1/2/3)
+confirmed the restored inline SVGs render as native vector paint.
 Lighthouse (headless Chrome, production build): Perf 92 (mobile) / 100 (desktop),
-A11y 100, SEO 100, Best Practices 73, CLS 0, mobile FCP 0.8 s.
+A11y 100, SEO 100, Best Practices 73, CLS 0, mobile FCP 0.8 s — **measured
+before §1c**; the perf score should be re-run now that home HTML is back at
+2.9 MB (see open item).
 
-**Open item:** iPhone crispness check on the new 2× WebP thumbnails (WebKit blur history).
+**Open item:** thumbnail page weight. After two raster generations (§1, §1b) Arsh
+chose inline SVG for maximum crispness (§1c) — home HTML is back at 2.9 MB raw /
+538 KB gzip, to be revisited later. The exact-size raster tooling (`pnpm thumbs`)
+is kept in the repo for that revisit.

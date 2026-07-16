@@ -1,10 +1,14 @@
 import { caseStudies } from "@/lib/case-studies";
+import { getInlineSvg } from "@/lib/inline-svg";
 import CaseStudyCard from "@/components/ui/CaseStudyCard";
 
-// Thumbnails are 2x WebP rasters under /public, rendered by next/image inside
-// CaseStudyCard — just a path handed down, no server-side file reading. (The
-// old inline-SVG pipeline that lived here is gone; the raw Figma SVGs weighed
-// 1-3.4MB each and made the home page 11MB of HTML.)
+// getInlineSvg touches Node's `fs`, so it's called HERE (a Server Component)
+// rather than inside CaseStudyCard itself — CaseStudyCard is also reachable
+// from client-rendered trees elsewhere, and `fs` can't be bundled for the
+// browser. See inline-svg.ts / learn/svg-thumbnail-blur.md (§10 records why
+// the site is back on inline SVG after two raster generations: visual
+// quality, by Arsh's explicit call; the SVGO'd files keep the cost at ~2.9MB
+// of home HTML instead of the original 11MB).
 export default function CaseStudies() {
     return (
         <section className="flex w-full flex-col items-start">
@@ -24,7 +28,10 @@ export default function CaseStudies() {
                     slug={study.slug}
                     title={study.title}
                     description={study.summary}
-                    thumbnailSrc={study.thumbnailCover}
+                    thumbnailSvg={
+                        study.thumbnailCover &&
+                        getInlineSvg(study.thumbnailCover, "xMinYMid slice")
+                    }
                     isFirst={index === 0}
                 />
             ))}

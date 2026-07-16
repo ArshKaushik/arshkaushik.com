@@ -1,4 +1,3 @@
-import Image from "next/image";
 import type { CaseStudy, CaseStudyPoint } from "@/lib/case-studies";
 
 // The case-study content card (Figma node 273-440). Presentational + reused by
@@ -53,7 +52,17 @@ const renderInline = (s: string): React.ReactNode => {
     return nodes.length === 1 ? nodes[0] : nodes;
 };
 
-export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
+export default function CaseStudyDetail({
+    study,
+    thumbnailSvg,
+}: {
+    study: CaseStudy;
+    // Pre-rendered inline <svg> markup (see inline-svg.ts). Computed by the
+    // caller rather than here: this component is rendered by CaseStudyOverlay,
+    // a "use client" component, and Node's `fs` (used to read the SVG file)
+    // can't be bundled for the browser — see learn/svg-thumbnail-blur.md.
+    thumbnailSvg?: string | false;
+}) {
     return (
         <article className="flex w-[800px] min-w-0 max-w-full flex-col gap-8 dashed dash-x dash-y bg-surface p-4 min-[600px]:p-8">
             {/* title + summary */}
@@ -66,13 +75,13 @@ export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
                 </p>
             </div>
 
-            {/* Visual: the study's thumbnailCover (same 2x WebP as the home
-                card), center-cropped to fill via next/image; an empty grey
-                block until set. `priority` because on a hard-loaded
-                /work/[slug] page this is the LCP element — preload it rather
-                than lazy-load. (Replaces the old inline-SVG rendering — the
-                raw Figma SVGs weighed megabytes; history in
-                learn/svg-thumbnail-blur.md.)
+            {/* Visual: the study's thumbnailCover (same SVG as the home card),
+                cropped to fill; an empty grey block until set. Rendered as
+                inline <svg> — the only pipeline that's pixel-crisp everywhere;
+                two raster generations were tried and rejected on visual
+                quality (full history: learn/svg-thumbnail-blur.md, esp. §10).
+                The caller sets preserveAspectRatio="xMidYMid slice" (SVG's
+                object-cover with a center crop).
                 aspect-[736/394] (not a fixed height): 736 = the article's
                 content width at its original 800px/p-8 size (800-64), so this
                 ratio reproduces the exact desktop height (394px) at that
@@ -81,14 +90,12 @@ export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
                 198.07 tall at 402px: 198.07/370 = 394/736 to 5 significant
                 figures). Applies at every breakpoint, not just this one. */}
             <div className="relative aspect-[736/394] w-full overflow-hidden bg-page">
-                {study.thumbnailCover && (
-                    <Image
-                        src={study.thumbnailCover}
-                        alt={study.title}
-                        fill
-                        sizes="(max-width: 600px) calc(100vw - 64px), (max-width: 900px) 536px, 736px"
-                        priority
-                        className="object-cover"
+                {thumbnailSvg && (
+                    <div
+                        role="img"
+                        aria-label={study.title}
+                        className="absolute inset-0"
+                        dangerouslySetInnerHTML={{ __html: thumbnailSvg }}
                     />
                 )}
             </div>

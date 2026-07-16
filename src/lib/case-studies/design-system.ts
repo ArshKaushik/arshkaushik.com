@@ -8,7 +8,7 @@ export const designSystem: CaseStudy = {
     deck: "A code-first design system, built and shipped with agentic AI — no Figma-to-code handoff, governed by a custom MCP that keeps every team on-spec.",
     summary:
         "A code-first design system built with agentic AI — no handoffs, governed by a custom MCP that keeps every team in sync. Design-to-ship time dropped 30%.",
-    thumbnailCover: "/thumbnails/designSystem.webp",
+    thumbnailCover: "/thumbnails/designSystem.svg",
     meta: [
         {
             label: "Role",
