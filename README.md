@@ -204,10 +204,14 @@ all three re-run clean after the §1c inline-SVG restore (the full build matters
 it's the only check that catches the `fs`-in-client-bundle trap, per
 `learn/svg-thumbnail-blur.md` §5). Playwright (WebKit + Chromium, DPR 1/2/3)
 confirmed the restored inline SVGs render as native vector paint.
-Lighthouse (headless Chrome, production build): Perf 92 (mobile) / 100 (desktop),
-A11y 100, SEO 100, Best Practices 73, CLS 0, mobile FCP 0.8 s — **measured
-before §1c**; the perf score should be re-run now that home HTML is back at
-2.9 MB (see open item).
+Lighthouse re-run **after §1c** (headless Chrome, production build, 2026-07-16):
+**desktop Perf 98** · mobile Perf **70** (home) / **62** (heaviest study) ·
+**A11y 100 · SEO 100 · CLS 0** on every run · Best Practices 73 (unchanged —
+entirely the deferred analytics stack, finding 8; the only console error is
+Vercel Analytics' script 404ing on localhost, which doesn't exist off-Vercel).
+The mobile-perf drop from the raster era's 92 is the priced-in cost of §1c:
+538 KB gzip of home HTML ≈ 3.5 s FCP on Lighthouse's simulated slow-4G
+throttle. Desktop (FCP 0.7 s / LCP 1.0 s) is effectively unchanged.
 
 **Open item:** thumbnail page weight. After two raster generations (§1, §1b) Arsh
 chose inline SVG for maximum crispness (§1c) — home HTML is back at 2.9 MB raw /
