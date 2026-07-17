@@ -24,6 +24,8 @@ Other scripts:
 pnpm build      # production build
 pnpm start      # serve the production build
 pnpm lint       # ESLint
+pnpm thumbs     # render exact-size WebP thumbnails from the SVG masters
+                # (tooling kept for a future page-weight pass — the app ships inline SVG today)
 ```
 
 ### Environment variables
@@ -47,12 +49,16 @@ src/
 ├── app/                          # Routing (App Router) + global shell & styles
 │   ├── layout.tsx                #   sidebar shell, fonts, theme favicons, @modal slot, Clarity
 │   ├── page.tsx                  #   home page — re-exports HomeContent
+│   ├── not-found.tsx             #   branded 404 (dashed surface card, serif "404")
+│   ├── opengraph-image.tsx       #   build-time og:image for the root URL (next/og)
+│   ├── robots.ts / sitemap.ts    #   crawler rules + sitemap, sourced from the caseStudies module
 │   ├── globals.css               #   Tailwind import, design tokens (@theme), custom utilities
 │   ├── @modal/                   #   parallel-route slot for the case-study overlay
 │   │   ├── default.tsx           #     slot fallback (renders nothing)
 │   │   └── (.)work/[slug]/       #     intercepts a card click → overlay over the home page
 │   └── work/[slug]/              #   direct load / refresh / shared link — renders HomeContent
-│                                  #   dimmed behind CaseStudyOverlay, same look as the soft-nav case
+│                                  #   dimmed behind CaseStudyOverlay, same look as the soft-nav case;
+│                                  #   + per-study opengraph-image.tsx (build-time og:images ×3)
 ├── components/
 │   ├── Clarity.tsx               #   Microsoft Clarity init (mounted once in layout.tsx)
 │   ├── layout/                   #   Sidebar (route-aware, desktop + 600-900px tablet pill), MobileNavPill (<600px, collapsible)
@@ -62,9 +68,11 @@ src/
 └── lib/
     ├── content.ts                # Page copy (identity, nav, hero) as data
     ├── inline-svg.ts             # Reads a trusted local SVG for inline embedding (avoids next/image's mobile-blur bug)
+    ├── og-fonts.ts               # Build-time Google-Fonts fetch for the og:images (satori can't read next/font files)
     └── case-studies/             # Case-study content module — typed schema, one file per study
 
 learn/                            # Deep-dive docs explaining non-trivial implementations
+scripts/                          # render-thumbnails.mjs — `pnpm thumbs` raster tooling (unused by the running app)
 public/                           # Static assets (incl. theme-aware favicons)
 next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* -> PostHog US Cloud)
 ```
@@ -79,7 +87,9 @@ next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* ->
 - **Custom dashed hairlines** — the exact 10px/10px dashes from the design can't be done with `border-dashed` (the browser controls dash length), so they're painted with a small, composable background-gradient utility system. Full walkthrough in [`learn/dashed-borders.md`](learn/dashed-borders.md).
 - **Spring hover interactions** — the case-study cards and sidebar links animate with a spring easing (`--ease-spring-gentle`) sampled from Figma. Walkthrough in [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md).
 - **Theme-aware favicons** — the browser tab icon switches with the OS/browser colour scheme via `prefers-color-scheme` (light/dark PNGs wired through the Next.js Metadata API in `layout.tsx`).
-- **Inline SVG thumbnails, not `next/image`** — the case-study thumbnails are large, hand-illustrated SVGs; `next/image`'s default config forces them into a bare, un-optimized `<img>` tag that rendered visibly blurry on real mobile browsers (Safari and Chrome-on-iOS — both WebKit). They're rendered as inline `<svg>` markup instead (`src/lib/inline-svg.ts`), which sidesteps the browser's image-decode pipeline entirely. Full write-up in [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md).
+- **Inline SVG thumbnails, not `next/image`** — the case-study thumbnails are large, hand-illustrated SVGs, rendered as inline `<svg>` markup (`src/lib/inline-svg.ts`) because that's the only pipeline that stays pixel-crisp on every engine, DPR, zoom level, and scaled display. This survived a full experiment cycle: `<img>`-tag SVG measurably blurs on WebKit, and a later exact-size WebP pipeline was provably 1:1 yet still read softer than native vector paint — so vectors won on visual quality, by explicit call. The inlined files are SVGO-optimized (~70% smaller than the raw Figma exports; home HTML ≈ 2.9 MB raw / 538 KB gzipped is the accepted trade, with the raster tooling kept in `scripts/` for a future weight pass). Three-act saga in [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md); line-by-line code walkthrough in [`learn/inline-svg-thumbnails-explained.md`](learn/inline-svg-thumbnails-explained.md).
+- **Social-share ready** — `metadataBase` + Open Graph/Twitter tags in `layout.tsx`, per-study `generateMetadata`, and **og:images generated at build time** via the `opengraph-image.tsx` file convention (`next/og`; fonts fetched at build by `src/lib/og-fonts.ts`, try/caught so offline builds fall back instead of failing) — plus `sitemap.ts` and `robots.ts` sourced from the same case-study data the pages render from.
+- **Accessibility hardened** — the case-study dialog is a real focus trap (`inert` applied to everything outside it, correct in both its DOM shapes), collapsed mobile-nav links leave the tab order (`inert`), the home page has a true h1 → h2 → h3 outline, backdrop-close ignores text-selection drags and scrollbar clicks, closing a hard-loaded study doesn't pollute Back-button history (`router.replace`), and bad URLs land on a branded 404 (`not-found.tsx`).
 - **Fully responsive, three tiers** — see the dedicated [Responsive design](#responsive-design) section below for the breakpoints, why they land where they do, and the mechanism behind each one.
 - **Analytics run production-only** — both Clarity (`src/components/Clarity.tsx`) and PostHog (`src/instrumentation-client.ts`) no-op under `pnpm dev`, so local testing never pollutes real visitor data. PostHog is proxied through this site's own domain (`/ingest/*`, see `next.config.ts`) rather than calling posthog.com directly, since ad-blockers commonly block the latter but not same-origin traffic.
 
@@ -124,5 +134,6 @@ The [`learn/`](learn/) folder documents the trickier pieces line-by-line — the
 - [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md) — the spring-based hover reveal (title slide + description fade).
 - [`learn/case-study-modal.md`](learn/case-study-modal.md) — the URL-addressable case-study overlay: parallel + intercepting routes, the content schema, backdrop, and animation.
 - [`learn/focus-visible-outline.md`](learn/focus-visible-outline.md) — the stray focus-ring-on-close bug and the focus-management fix (`:focus-visible`).
-- [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md) — why the case-study SVG thumbnails looked blurry on real mobile browsers, and the fix (inline `<svg>` instead of `next/image`).
+- [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md) — the three-act thumbnail-blur saga: `<img>`-SVG blur on WebKit → the exact-size WebP raster experiment → why inline `<svg>` won on visual quality.
+- [`learn/inline-svg-thumbnails-explained.md`](learn/inline-svg-thumbnails-explained.md) — junior-dev-level walkthrough of the final thumbnail code vs. the raster era: the server/client boundary and `fs`, `dangerouslySetInnerHTML`, `preserveAspectRatio`, `srcset`/`sizes`, and a gotchas checklist.
 - [`learn/case-study-refresh-behavior.md`](learn/case-study-refresh-behavior.md) — the "no way back to home" bug after refreshing mid-case-study, the desktop/mobile navigation fixes, and the redesign that makes a direct load look like the soft-nav overlay.

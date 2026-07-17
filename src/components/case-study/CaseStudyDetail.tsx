@@ -3,6 +3,13 @@ import type { CaseStudy, CaseStudyPoint } from "@/lib/case-studies";
 // The case-study content card (Figma node 273-440). Presentational + reused by
 // BOTH the overlay (app/@modal) and the full page (app/work/[slug]).
 //
+// All long-form copy here carries `leading-relaxed` (line-height 1.625, vs the
+// inherited 1.5 default): these paragraphs run ~90+ characters per line at the
+// card's 736px measure, and the taller line box is what helps the eye track
+// back to the start of the next line at that length. Deliberately NOT applied
+// to CaseStudyCard's home-card description — its 600-900px layout math depends
+// on that text being exactly 2 × 21px lines (see the 50px-lift comment there).
+//
 // Renders a stored content string. The copy uses light inline markdown: the
 // design shows prose without emphasis, so `**bold**` / `*italic*` are stripped —
 // BUT markdown links `[text](url)` become real, new-tab anchors. That's why this
@@ -31,7 +38,7 @@ const renderInline = (s: string): React.ReactNode => {
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline underline-offset-2 transition-colors hover:text-textPrimary"
+                className="underline underline-offset-2 transition-colors duration-[520ms] ease-spring-gentle hover:text-textPrimary motion-reduce:transition-none"
             >
                 {text}
             </a>,
@@ -63,14 +70,18 @@ export default function CaseStudyDetail({
                 <h1 className="font-serif text-[28px] text-textPrimary">
                     {study.title}
                 </h1>
-                <p className="text-[14px] text-textSecondarySurface">
+                <p className="text-[14px] leading-relaxed text-textSecondarySurface">
                     {renderInline(study.summary)}
                 </p>
             </div>
 
             {/* Visual: the study's thumbnailCover (same SVG as the home card),
                 cropped to fill; an empty grey block until set. Rendered as
-                inline <svg> (not next/image) — see inline-svg.ts for why.
+                inline <svg> — the only pipeline that's pixel-crisp everywhere;
+                two raster generations were tried and rejected on visual
+                quality (full history: learn/svg-thumbnail-blur.md, esp. §10).
+                The caller sets preserveAspectRatio="xMidYMid slice" (SVG's
+                object-cover with a center crop).
                 aspect-[736/394] (not a fixed height): 736 = the article's
                 content width at its original 800px/p-8 size (800-64), so this
                 ratio reproduces the exact desktop height (394px) at that
@@ -106,7 +117,7 @@ export default function CaseStudyDetail({
                         <dt className="w-full shrink-0 text-[14px] text-textPrimary min-[600px]:w-[120px]">
                             {renderInline(row.label)}
                         </dt>
-                        <dd className="w-full text-[14px] text-textSecondaryPage min-[600px]:flex-1">
+                        <dd className="w-full text-[14px] leading-relaxed text-textSecondaryPage min-[600px]:flex-1">
                             {renderInline(row.value)}
                         </dd>
                     </div>
@@ -114,18 +125,18 @@ export default function CaseStudyDetail({
             </dl>
 
             {/* Company / context paragraph (same across studies). */}
-            <p className="text-[14px] text-textSecondarySurface">
+            <p className="text-[14px] leading-relaxed text-textSecondarySurface">
                 {renderInline(study.context)}
             </p>
 
             <Section heading="The Problem">
-                <p className="text-[14px] text-textSecondarySurface">
+                <p className="text-[14px] leading-relaxed text-textSecondarySurface">
                     {renderInline(study.problem)}
                 </p>
             </Section>
 
             <Section heading="The Real Problem">
-                <p className="text-[14px] text-textSecondarySurface">
+                <p className="text-[14px] leading-relaxed text-textSecondarySurface">
                     {renderInline(study.realProblem)}
                 </p>
             </Section>
@@ -143,7 +154,7 @@ export default function CaseStudyDetail({
             </Section>
 
             <Section heading="The Hardest Call">
-                <p className="text-[14px] text-textSecondarySurface">
+                <p className="text-[14px] leading-relaxed text-textSecondarySurface">
                     {renderInline(study.hardestCall)}
                 </p>
             </Section>
@@ -170,7 +181,7 @@ function Section({
 // A "What I did" / "Impact" item: black lead-in span + grey body span, no bullet.
 function Point({ point }: { point: CaseStudyPoint }) {
     return (
-        <p className="text-[14px] text-textSecondarySurface">
+        <p className="text-[14px] leading-relaxed text-textSecondarySurface">
             <span className="text-textPrimary">{renderInline(point.lead)}</span>
             {point.body ? <> {renderInline(point.body)}</> : null}
         </p>

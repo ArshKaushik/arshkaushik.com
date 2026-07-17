@@ -42,9 +42,10 @@ export default function CaseStudyOverlay({
     closeHref,
 }: {
     study: CaseStudy;
-    // Pre-rendered by the caller (a Server Component) and passed straight
-    // through to CaseStudyDetail — this component is "use client", so it
-    // can't read the thumbnail SVG file itself. See learn/svg-thumbnail-blur.md.
+    // Pre-rendered inline <svg> markup for the study's thumbnail, computed by
+    // the server-component caller — this file is "use client", so it can only
+    // forward the string; it must never import inline-svg.ts itself (Node's
+    // `fs` can't be bundled for the browser — learn/svg-thumbnail-blur.md §5).
     thumbnailSvg?: string | false;
     // See the file-level comment: omitted for the intercepted-route overlay
     // (closing calls router.back()), passed as "/" by the standalone page
@@ -57,6 +58,10 @@ export default function CaseStudyOverlay({
     const [open, setOpen] = useState(false);
     const closingRef = useRef(false);
     const dialogRef = useRef<HTMLDivElement>(null);
+    const cardRef = useRef<HTMLDivElement>(null);
+    // True while the CURRENT press started on the backdrop (not inside the
+    // card, not on the scrollbar) — see the pointer handlers on the dialog.
+    const backdropPressRef = useRef(false);
 
     // Move focus INTO the dialog on open (standard modal behavior). This also
     // pulls focus OFF the card the user clicked. That matters for closing: the
@@ -69,18 +74,74 @@ export default function CaseStudyOverlay({
         dialogRef.current?.focus({ preventScroll: true });
     }, []);
 
-    // Enter animation.
+    // Make everything OUTSIDE the dialog inert while it's open. aria-modal
+    // only *tells* assistive tech the background is off-limits — it doesn't
+    // stop Tab from walking into the dimmed home page behind us. `inert`
+    // actually enforces it (unfocusable + hidden from the accessibility
+    // tree). The dialog's position in the DOM differs per caller (direct
+    // body child via the @modal slot on soft nav; nested inside the layout
+    // column on a hard load), so instead of assuming a structure, walk UP
+    // from the dialog and inert every sibling at each level — that covers
+    // exactly "everything except my ancestors" in both shapes. Only elements
+    // we actually flipped get restored, so anything already inert for other
+    // reasons is left alone.
     useEffect(() => {
-        const id = requestAnimationFrame(() => setOpen(true));
-        return () => cancelAnimationFrame(id);
+        const dialog = dialogRef.current;
+        if (!dialog) return;
+        const flipped: HTMLElement[] = [];
+        let node: HTMLElement = dialog;
+        while (node.parentElement && node !== document.body) {
+            const parent = node.parentElement;
+            for (const sibling of Array.from(parent.children)) {
+                if (
+                    sibling !== node &&
+                    sibling instanceof HTMLElement &&
+                    !sibling.inert
+                ) {
+                    sibling.inert = true;
+                    flipped.push(sibling);
+                }
+            }
+            node = parent;
+        }
+        return () => flipped.forEach((el) => (el.inert = false));
     }, []);
 
-    // Lock background scroll while the overlay is mounted.
+    // Enter animation. Double-rAF, not single: the first rAF can fire in the
+    // same frame as the initial commit (before the browser has painted the
+    // closed state), in which case the transition would have nothing to
+    // animate FROM and the card would just appear. The nested rAF guarantees
+    // at least one painted frame of the closed state first.
     useEffect(() => {
-        const prev = document.body.style.overflow;
-        document.body.style.overflow = "hidden";
+        let raf2: number | undefined;
+        const raf1 = requestAnimationFrame(() => {
+            raf2 = requestAnimationFrame(() => setOpen(true));
+        });
         return () => {
-            document.body.style.overflow = prev;
+            cancelAnimationFrame(raf1);
+            if (raf2 !== undefined) cancelAnimationFrame(raf2);
+        };
+    }, []);
+
+    // Lock background scroll while the overlay is mounted. Hiding the page
+    // scrollbar widens the viewport by the scrollbar's width on platforms
+    // with classic (non-overlay) scrollbars — Windows, mostly — which shifts
+    // the whole layout sideways on open and back on close. Padding the body
+    // by that exact width keeps in-flow content (the column, the >=900px
+    // sticky sidebar) where it was. Overlay-scrollbar platforms (macOS
+    // default) measure 0 and are untouched.
+    useEffect(() => {
+        const prevOverflow = document.body.style.overflow;
+        const prevPaddingRight = document.body.style.paddingRight;
+        const scrollbarWidth =
+            window.innerWidth - document.documentElement.clientWidth;
+        document.body.style.overflow = "hidden";
+        if (scrollbarWidth > 0) {
+            document.body.style.paddingRight = `${scrollbarWidth}px`;
+        }
+        return () => {
+            document.body.style.overflow = prevOverflow;
+            document.body.style.paddingRight = prevPaddingRight;
         };
     }, []);
 
@@ -88,8 +149,10 @@ export default function CaseStudyOverlay({
     // ref guards against double-close (Esc + backdrop). We navigate on a timer
     // rather than transitionend so it still works under "reduce motion" (no
     // transition). router.back() when there's real history to reverse (the
-    // intercepted overlay); router.push(closeHref) for the standalone page,
-    // which has none.
+    // intercepted overlay); router.replace(closeHref) for the standalone page
+    // — replace, not push, so the browser Back button doesn't return to the
+    // case study the user JUST closed (their original /work/[slug] entry is
+    // still in history from however they arrived).
     const close = useCallback(() => {
         if (closingRef.current) return;
         closingRef.current = true;
@@ -98,7 +161,7 @@ export default function CaseStudyOverlay({
             "(prefers-reduced-motion: reduce)",
         ).matches;
         window.setTimeout(
-            () => (closeHref ? router.push(closeHref) : router.back()),
+            () => (closeHref ? router.replace(closeHref) : router.back()),
             reduce ? 0 : 520,
         );
     }, [router, closeHref]);
@@ -119,8 +182,31 @@ export default function CaseStudyOverlay({
             aria-modal="true"
             aria-label={study.title}
             tabIndex={-1}
-            onClick={close}
-            className={`fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-page px-0 pt-10 pb-[140px] outline-none transition-opacity duration-[400ms] ease-spring-gentle motion-reduce:transition-none min-[600px]:pt-0 min-[900px]:bg-overlay/12 min-[900px]:px-2.5 min-[900px]:py-20 ${
+            // Backdrop-close, but only when the PRESS also started on the
+            // backdrop. A bare onClick={close} here had two real failure
+            // modes, both because `click` fires on the nearest common
+            // ancestor of mousedown/mouseup:
+            //   • selecting text in the card and releasing past its edge
+            //     fired a click on this dialog → the overlay slammed shut
+            //     mid-read;
+            //   • on classic-scrollbar platforms, interacting with THIS
+            //     element's own scrollbar could do the same.
+            // onPointerDown records where the press began — inside the card
+            // (via cardRef) or on the scrollbar strip (offsetX past
+            // clientWidth) means "not a backdrop press" — and onClick only
+            // closes when the press qualified.
+            onPointerDown={(e) => {
+                const onScrollbar =
+                    e.target === e.currentTarget &&
+                    e.nativeEvent.offsetX >= e.currentTarget.clientWidth;
+                backdropPressRef.current =
+                    !onScrollbar &&
+                    !cardRef.current?.contains(e.target as Node);
+            }}
+            onClick={() => {
+                if (backdropPressRef.current) close();
+            }}
+            className={`fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-page px-0 pt-10 pb-[140px] outline-none transition-opacity duration-[520ms] ease-spring-gentle motion-reduce:transition-none min-[600px]:pt-0 min-[900px]:bg-overlay/12 min-[900px]:px-2.5 min-[900px]:py-20 ${
                 open ? "opacity-100" : "opacity-0"
             }`}
         >
@@ -152,7 +238,11 @@ export default function CaseStudyOverlay({
                     open ? "translate-y-0" : "translate-y-[100vh]"
                 }`}
             >
-                <div onClick={(e) => e.stopPropagation()} className="min-w-0">
+                <div
+                    ref={cardRef}
+                    onClick={(e) => e.stopPropagation()}
+                    className="min-w-0"
+                >
                     <CaseStudyDetail study={study} thumbnailSvg={thumbnailSvg} />
                 </div>
             </div>

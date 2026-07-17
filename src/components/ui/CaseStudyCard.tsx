@@ -4,6 +4,9 @@ import Link from "next/link";
 // The whole card is a Link to /work/[slug]; clicking it opens that study's
 // detail overlay (see src/app/@modal). `group` on the Link lets the inner
 // title/description react to the WHOLE card being hovered via `group-hover:*`.
+// `active:opacity-70` gives an INSTANT pressed acknowledgment on click — the
+// overlay route renders on the server, so without it the click feels dead
+// until that response arrives.
 //
 // On hover (Figma "State=Hovered") the title slides UP and a description fades
 // in beneath it, using the "Gentle" spring easing (see --ease-spring-gentle in
@@ -32,13 +35,19 @@ export default function CaseStudyCard({
     return (
         <Link
             href={`/work/${slug}`}
-            className={`group flex h-auto w-full flex-col items-start gap-6 dashed dash-b bg-surface p-6 min-[600px]:h-[441px] ${
+            className={`group flex h-auto w-full flex-col items-start gap-6 dashed dash-b bg-surface p-6 transition-opacity active:opacity-70 min-[600px]:h-[441px] ${
                 isFirst ? "dash-t" : ""
             }`}
         >
             {/* Figma: "thumbnail" — image slot. Shows the study's thumbnailCover
                 SVG, cropped to fill; an empty box until set. Rendered as
-                inline <svg> (not next/image) — see inline-svg.ts for why.
+                inline <svg> — the ONLY approach that measured pixel-crisp in
+                every engine/DPR cell (learn/svg-thumbnail-blur.md §3), and it
+                stays crisp under browser zoom and scaled macOS displays where
+                any raster goes soft. Two raster generations were tried and
+                rejected on visual quality (§1-§8: <img src=svg> WebKit blur;
+                §9: WebP softness) — Arsh's call: the page-weight cost of
+                inlining is accepted for now, quality wins (§10).
                 preserveAspectRatio="xMinYMid slice" = SVG's own equivalent of
                 object-cover + object-left: per Figma, the image should stay
                 anchored to the LEFT edge as the card narrows across
@@ -87,18 +96,24 @@ export default function CaseStudyCard({
                 {/* DESCRIPTION — normal flow (ordered last) below 600px;
                     absolute + always-visible at 600-900px; hover-gated
                     (opacity 0->1) at >=900px. `absolute` at 600px+ so it
-                    never pushes the title. */}
-                <p className="order-last w-full font-sans text-[14px] text-textSecondarySurface opacity-100 transition duration-[511ms] ease-spring-gentle motion-reduce:transition-none min-[600px]:absolute min-[600px]:bottom-0 min-[600px]:left-0 min-[600px]:order-none min-[900px]:opacity-0 min-[900px]:group-hover:opacity-100">
+                    never pushes the title. group-focus-visible mirrors the
+                    hover reveal for keyboard users — tabbing to the card
+                    shows the same content a mouse hover does. */}
+                <p className="order-last w-full font-sans text-[14px] text-textSecondarySurface opacity-100 transition duration-[520ms] ease-spring-gentle motion-reduce:transition-none min-[600px]:absolute min-[600px]:bottom-0 min-[600px]:left-0 min-[600px]:order-none min-[900px]:opacity-0 min-[900px]:group-hover:opacity-100 min-[900px]:group-focus-visible:opacity-100">
                     {description}
                 </p>
 
-                {/* TITLE — normal flow (ordered first) below 600px; shifted up
-                    50px permanently at 600-900px (no hover on touch); hover-
-                    gated shift at >=900px instead, with the gentle spring
-                    (watch the slight overshoot). */}
-                <p className="order-first w-full font-serif text-[24px] text-textPrimary transition duration-[511ms] ease-spring-gentle motion-reduce:transition-none min-[600px]:order-none min-[600px]:-translate-y-[50px] min-[900px]:translate-y-0 min-[900px]:group-hover:-translate-y-[50px]">
+                {/* TITLE — an h3 (home outline: h1 hero > h2 "Selected work" >
+                    h3 card titles) styled identically to the old <p> — Tailwind's
+                    preflight resets heading size/weight to inherit, so the
+                    classes are the only thing that styles it. Normal flow
+                    (ordered first) below 600px; shifted up 50px permanently at
+                    600-900px (no hover on touch); hover-gated shift at >=900px
+                    instead, with the gentle spring (watch the slight overshoot).
+                    group-focus-visible = the same reveal for keyboard focus. */}
+                <h3 className="order-first w-full font-serif text-[24px] text-textPrimary transition duration-[520ms] ease-spring-gentle motion-reduce:transition-none min-[600px]:order-none min-[600px]:-translate-y-[50px] min-[900px]:translate-y-0 min-[900px]:group-hover:-translate-y-[50px] min-[900px]:group-focus-visible:-translate-y-[50px]">
                     {title}
-                </p>
+                </h3>
             </div>
         </Link>
     );

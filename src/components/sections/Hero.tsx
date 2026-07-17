@@ -6,9 +6,15 @@ export default function Hero() {
         <section className="flex w-full flex-col items-start">
 
             <div className="flex w-full flex-col items-start dashed dash-t bg-surface p-6">
-                <p className="w-full font-serif text-[40px] leading-[normal] text-textPrimary min-[600px]:w-[548px]">
+                {/* h1, not p: the page's one top-level heading, so screen
+                    readers navigating by headings and search engines get a
+                    real document outline (this > h2 "Selected work" > h3 card
+                    titles). Renders identically — Tailwind's preflight resets
+                    heading size/weight to inherit, so the classes do all the
+                    styling. */}
+                <h1 className="w-full font-serif text-[40px] leading-[normal] font-normal text-textPrimary min-[600px]:w-[548px]">
                     {heroTagline}
-                </p>
+                </h1>
             </div>
 
             {/* Figma: "stats" — first cell fills, the rest are fixed width with a left divider.

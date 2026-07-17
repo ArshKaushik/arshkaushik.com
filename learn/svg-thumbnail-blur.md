@@ -13,6 +13,16 @@ that renders a thumbnail (`CaseStudies.tsx`, `work/[slug]/page.tsx`,
 into **`CaseStudyCard.tsx`**/**`CaseStudyDetail.tsx`** — §5 explains why it's
 split up this way rather than called directly inside those two components.
 
+> **This document is now a three-act history.** §1–§8 describe the original
+> inline-SVG fix above; it was later replaced by rasterized WebPs (inlining
+> is what made pages 11 MB — see `fable5-check/01-2-code-review-fix.md`),
+> which blurred for a *different* reason — §9 covers that second blur and
+> the exact-size raster pipeline built to cure it. §10 is the final act:
+> **inline SVG is back** (quality over weight, by explicit call), so
+> `inline-svg.ts` exists again and is what the site ships today. For a
+> line-by-line walkthrough of the final code, old vs. new, see the
+> companion doc `learn/inline-svg-thumbnails-explained.md`.
+
 ---
 
 ## 1. The assets
@@ -367,3 +377,139 @@ const thumbnailSvg = thumbnailCover && getInlineSvg(thumbnailCover, "xMinYMid sl
   rendered by a `"use client"` component** — pass the resulting string down
   as a prop instead of importing the helper deeper in the tree. Verify with a
   full `pnpm build`, not just `pnpm dev`.
+
+---
+
+## 9. Round two: the raster era's own blur — and the end of the saga
+
+The inline-SVG fix above was itself replaced in the v1.1 review pass
+(`fable5-check/01-2-code-review-fix.md`): inlining megabytes of outlined-text
+paths made the home page 11.2 MB of HTML, so the three SVGs were rasterized to
+a single 1472×789 WebP each and served through `next/image`. Pages shrank
+~650×. Then Arsh looked at the site: the thumbnails were now "a bit blurred,
+unclear, uncrisp" — softer than the inline-SVG era on the same screens.
+
+### The mechanism: nothing ever painted 1:1
+
+The 1472px WebPs themselves were crisp. The blur was added *between* the file
+and the screen, twice — plus a third, phone-only failure:
+
+1. **The optimizer's breakpoints don't contain the real sizes.** On a 2× Mac
+   the home card draws the image at 552×296 CSS px = **1104 device px wide**.
+   `next/image` offers only its default width ladder (640/750/828/1080/1200/
+   1920…), so the browser requests 1200; the optimizer resizes 1472 → 1200
+   **and re-encodes at quality 75** (resample #1 + generation loss); the
+   browser then resizes 1200 → 1104 to paint (resample #2). Two fractional
+   resamples of hairline UI art, plus a lossy re-encode. Every DPR hit some
+   version of this.
+
+2. **`sizes` described the box, but `object-cover` draws bigger than the
+   box.** The card's image box is a *fixed 296px CSS tall* at every viewport;
+   `object-cover` therefore always scales the image to ~552×296 CSS and crops
+   the right edge as the box narrows. The drawn width never changes — but
+   `sizes="(max-width: 600px) calc(100vw - 80px), 552px"` reported the *box*
+   width. A 390px-wide 3× iPhone computed 310 CSS × 3 = 930px of need,
+   downloaded ~1080px… and then had to paint the image 552 CSS × 3 = **1657
+   device px wide. An outright upscale.** The lesson generalizes: **`sizes`
+   must describe the width the image is *drawn* at, which under `object-cover`
+   with a fixed-height box is NOT the visible box width.**
+
+3. And the re-encode itself: even where no resize happened (the detail hero at
+   736px on 2×, exactly the master's 1472px), the optimizer still re-encoded
+   WebP→WebP at quality 75 — a free generation of mush.
+
+"Go back to the SVGs" was considered and rejected with §3's matrix: `<img
+src=".svg">` is *measurably worse* blur in WebKit at every DPR, and inline SVG
+is the 11 MB problem. The vector masters stay in `public/thumbnails/` — but as
+the *source* the rasters are rendered from, never something a browser loads.
+
+### The fix: a file for every size the layout draws, and nothing in between
+
+`scripts/render-thumbnails.mjs` (run as `pnpm thumbs`, `sharp` as a
+devDependency) rasterizes each SVG master **natively at every drawn size** —
+librsvg renders the vectors directly at the target pixel grid, so no raster is
+ever resized:
+
+- **Home card** (drawn 552×296 CSS always): `552`, `1104`, `1656` — exact
+  1×/2×/3×.
+- **Detail hero** (box `aspect-[736/394]`; width tiers 736/536/fluid):
+  `736`, `1072`, `1472`, `2208` — exact for every fixed tier at 1×/2×/3×
+  (1072 = the 536px tier on 2× iPads); only fluid sub-600px widths take a
+  single browser downscale, which is inherent to fluid layouts.
+
+Encoding is **near-lossless WebP** — measured *both* smaller than lossy q90
+(35–46 KB vs 39–59 KB at 1104px) *and* visually transparent; flat-color,
+hairline-heavy UI art is near-lossless's ideal case. 21 files, ~997 KB total —
+and a 2× visitor now downloads *less* per card (~40 KB) than the old
+optimizer output.
+
+`CaseStudyCard`/`CaseStudyDetail` serve them with a plain `<img srcset>`
+(deliberately not `next/image` — the optimizer *is* the resampler being
+removed): the card's `sizes` is the constant `"552px"` it actually draws,
+`fetchPriority="high"` keeps the LCP hint on the first card and the detail
+hero, `loading="lazy"` keeps below-fold cards lazy. `thumbnailCover` became
+`thumbnailBase` (components append `-<width>.webp` from their own ladder).
+With `next/image`'s last users gone, its client runtime left the bundle
+(−18.2 KB gzip, back to the pre-raster baseline).
+
+### Verification
+
+Playwright (WebKit + Chromium) against the production build, DPR 1/2/3 ×
+desktop/phone/iPad viewports — all ten combinations select exactly the
+predicted file (`img.currentSrc`) and the device-pixel screenshots are
+indistinguishable from the source renders. The two regression cases prove out:
+a 390px 3× phone picks the 1656 card file (no more upscale), and the 2×
+desktop card paints the 1104 file 1:1 — the element screenshot is 1104×592,
+byte-for-byte the file's own pixels.
+
+### Lessons this round adds
+
+- **An image optimizer is a resampler you don't control.** For photos it's a
+  fine trade; for a fixed set of hand-made art at known display sizes,
+  exact pre-rendered files beat automated "optimization" on both fidelity
+  *and* bytes.
+- **Under `object-cover` in a fixed-height box, the drawn width is constant —
+  `sizes` must say so.** Reporting the responsive box width silently
+  under-requests on high-DPR phones, and the failure mode (upscale) is the
+  worst one.
+- **Check what's served at the browser-chosen width, not the source asset.**
+  The 1472px master was inspected and crisp; the blur lived in the
+  `/_next/image` response and the second browser resample, visible only
+  end-to-end.
+- **Near-lossless WebP for flat-color UI art** can be smaller than lossy q90.
+  Measure before assuming lossy is the size winner.
+
+---
+
+## 10. Epilogue: quality wins — inline SVG returns
+
+§9's exact-size pipeline did what it promised mechanically — Playwright
+confirmed every DPR/viewport combination downloads the exact file and paints
+it 1:1 — and Arsh still judged the thumbnails uncrisp next to his memory of
+the inline-SVG era. That's not a contradiction; it's the ceiling of rasters:
+
+- **A 1:1 raster is still librsvg's antialiasing, frozen.** Pixel-exact
+  delivery reproduces librsvg's *rendering* perfectly — but that rendering
+  isn't the browser engine's own vector paint (different AA, different filter
+  rasterization), and for hairline UI art the difference is visible to a
+  trained eye.
+- **Fixed sizes can't survive the real world's scale factors.** Browser zoom,
+  macOS "more space" scaled displays (the compositor renders at 2× virtual
+  then downsamples the whole framebuffer), pinch zoom — each adds a resample
+  a fixed raster can't dodge. Inline SVG re-rasterizes natively at every
+  effective scale and stays perfect through all of them.
+
+So the final call — Arsh's, explicitly, quality over page weight — restores
+§4's inline-SVG pipeline, with the one lasting upgrade this saga produced:
+the inlined files are now the **SVGO'd masters**, so the home page costs
+**2.9 MB raw / 538 KB gzip** instead of the original 11.2 MB (heaviest study
+page 4.5 MB, was 18.1 MB). `next/image` stays out of the bundle. The
+exact-size tooling (`pnpm thumbs` + `scripts/render-thumbnails.mjs`) stays in
+the repo for whenever the weight problem is revisited.
+
+The closing lesson: **delivery pipelines can be verified; perception is
+decided by eyes.** Every mechanical claim in §9 was true, and the change was
+still wrong for this portfolio — a portfolio's thumbnails are the work, and
+"provably 1:1" is not the same standard as "as crisp as the medium allows."
+When quality is the product, the gold standard (native vector paint) is the
+spec, not a baseline to approximate.
