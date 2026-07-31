@@ -12,34 +12,34 @@ export const connectorConfig: CaseStudy = {
     meta: [
         {
             label: "Role",
-            value: "Led — sole designer on the project (senior design mentorship & reviews)",
+            value: "Lead UX Designer",
         },
         {
             label: "Team",
-            value: "Data Configuration team; partnered with PM, product owner, engineering, and the Data Quality team",
+            value: "Data Configuration + Data Quality",
         },
         {
             label: "Timeline",
-            value: "~5.5 months — ~1.5 research · ~2.5 design · ~1.5 development",
+            value: "5.5 months — 1.5 research · 2.5 design · 1.5 development",
         },
         {
             label: "Method & tools",
-            value: "First-ever user research (6 interviews) · Figma · FigJam · MS Teams · Copilot (analysis)",
+            value: "Contextual Inquiry · Figma · FigJam · MS Teams · Copilot (analysis)",
         },
     ],
     context: companyContext,
     problem:
         "Setting up a data source meant moving through a multi-step flow — source, credentials, catalog, profiling, scheduling — built on non-standard terminology the UI never explained. Scheduling, with its two schedulers, was the worst. Anyone who hadn't used it for years got stuck, and the confusion turned into support tickets.",
     realProblem:
-        "The flow had never been researched — every decision rested on the team's own product assumptions, never tested against a user. The friction wasn't one bad screen; nothing on screen told users what it was asking of them, or why. It also boxed them in: routine control over their own data assets — catalog rules, which datasets to profile and score, scheduling specifics, a closing summary — lived in a *separate* product, so finishing a connector meant detouring out to the Data Catalog to do it.",
+        "The flow had never been researched — every decision rested on the team's own product assumptions, never tested against a user. The friction wasn't one bad screen; nothing on screen told users what it was asking of them, or why. It also boxed them in: routine control over their own data assets — catalog rules, which datasets to profile and score, scheduling specifics, a closing summary — lived in a separate product, so finishing a connector meant detouring out to the Data Catalog to do it.",
     whatIDid: [
         {
             lead: "Ran the flow's first-ever user research.",
-            body: "Scoped it, wrote the guide, recruited, and interviewed six support engineers chosen *because* they didn't know the flow — so the gaps would surface without veteran bias.",
+            body: "Scoped it, wrote the guide, recruited, and interviewed six support engineers chosen because they didn't know the flow — so the gaps would surface without veteran bias.",
         },
         {
             lead: "Synthesized and aligned.",
-            body: "Analyzed in FigJam (and tested Copilot as an analysis aid), then walked design, PM/product owner, and engineering through the findings to agree on what to build.",
+            body: "Analyzed in FigJam (and tested Copilot as an analysis aid), then walked design, product, and engineering through the findings to agree on what to build.",
         },
         {
             lead: "Designed three features as one flow.",
@@ -60,7 +60,7 @@ export const connectorConfig: CaseStudy = {
     ],
     impact: [
         {
-            lead: "~50% drop in support tickets",
+            lead: "50% drop in support tickets",
             body: "about understanding the flow — validated with fresh-eyes internal testing before launch.",
         },
         {

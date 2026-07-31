@@ -12,7 +12,7 @@ export const commandLine: CaseStudy = {
     meta: [
         {
             label: "Role",
-            value: "Lead designer on both efforts — **UX designer** on version management, **experience engineer** on the agent health dashboard (designed *and* built it with agentic AI). Senior design partner for reviews.",
+            value: "Lead designer & engineer — UX designer on version management, experience engineer on the agent health dashboard (designed and developed with agentic AI)",
         },
         {
             label: "Teams",
@@ -20,11 +20,11 @@ export const commandLine: CaseStudy = {
         },
         {
             label: "Timeline",
-            value: "~2.5mo version-management design · ~1mo dashboard (designed + built together)",
+            value: "2.5mo version-management (design) · 1mo dashboard (design + development)",
         },
         {
             label: "Stack",
-            value: "Figma · VS Code · Copilot · Claude Code · Next.js / shadcn / Tailwind",
+            value: "Figma · VS Code · Copilot · Claude Code · Next.js · Shadcn · Tailwind",
         },
     ],
     context: companyContext,
@@ -38,11 +38,11 @@ export const commandLine: CaseStudy = {
             body: "version management (Data Integration) and an agent health dashboard (Data Configuration) — into one coherent control surface.",
         },
         {
-            lead: "Designed the version-management experience in Figma",
+            lead: "Designed the version-management experience",
             body: "upgrades, rollbacks, and a clear view of dependencies and downstream impact that the CLI kept hidden.",
         },
         {
-            lead: "Designed *and* built the health dashboard as an experience engineer",
+            lead: "Designed and developed the health dashboard",
             body: "agentically, in code — so stewards get status, history, and instant outage alerts at a glance instead of querying for them.",
         },
         {
@@ -56,7 +56,7 @@ export const commandLine: CaseStudy = {
     ],
     impact: [
         {
-            lead: "~80% fewer task errors in internal testing",
+            lead: "80% fewer task errors in internal testing",
             body: "validated with support engineers and fresh-eyes back-end engineers. (Production rollout was paused by a company-wide stack migration.)",
         },
         {
