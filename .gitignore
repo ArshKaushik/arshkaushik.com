@@ -42,3 +42,9 @@ next-env.d.ts
 
 # graphify tool output (machine-specific paths / caches; not project source)
 /graphify-out/
+
+# AI-agent tooling (machine-specific; not project source). /.claude in particular
+# holds git worktrees — whole second checkouts of this repo, ~800MB.
+/.claude/
+/.agents/
+/skills-lock.json

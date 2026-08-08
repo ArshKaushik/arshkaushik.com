@@ -64,7 +64,7 @@ src/
 │   ├── layout/                   #   Sidebar (route-aware, desktop + 600-900px tablet pill), MobileNavPill (<600px, collapsible)
 │   ├── sections/                 #   Hero, CaseStudies, Footer, HomeContent (composes the three, reused by both routes above)
 │   ├── ui/                       #   NavLink, Stat, CaseStudyCard (small reusable pieces)
-│   └── case-study/               #   CaseStudyDetail (shared card), CaseStudyOverlay, BackNav
+│   └── case-study/               #   CaseStudyDetail (shared card + point cards), CaseStudyOverlay, BackNav
 └── lib/
     ├── content.ts                # Page copy (identity, nav, hero) as data
     ├── inline-svg.ts             # Reads a trusted local SVG for inline embedding (avoids next/image's mobile-blur bug)
@@ -73,7 +73,9 @@ src/
 
 learn/                            # Deep-dive docs explaining non-trivial implementations
 scripts/                          # render-thumbnails.mjs — `pnpm thumbs` raster tooling (unused by the running app)
-public/                           # Static assets (incl. theme-aware favicons)
+public/                           # Static assets (theme-aware favicons, thumbnails/ SVG masters)
+└── csAssets/<study>/             #   Per-point card illustrations, 1086×900 PNGs exported from Figma
+                                  #   (whatIDid-assetN.png / impact-assetN.png)
 next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* -> PostHog US Cloud)
 ```
 
@@ -83,6 +85,7 @@ next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* ->
 
 - **Content-driven** — page copy lives in `src/lib/content.ts` and case studies in the typed `src/lib/case-studies/` module (one file per study + a barrel `index.ts`); components render from that data, so adding a case study or link is a data edit, not a layout edit.
 - **URL-addressable case-study modal** — clicking a "Selected work" card opens the study as an overlay over the home page with its own URL (`/work/<slug>`), so it's shareable and the browser Back button closes it; loading that URL directly (or refreshing mid-view) renders the same dimmed-home-behind-the-card look, closing via a real navigation instead of browser history. Built with Next.js parallel + intercepting routes. Full walkthrough in [`learn/case-study-modal.md`](learn/case-study-modal.md), with the direct-load/refresh behavior and the two navigation bugs behind it in [`learn/case-study-refresh-behavior.md`](learn/case-study-refresh-behavior.md).
+- **Case-study point cards** — "What I did" and "Impact" render each point as a card: the same lead/body copy on top, a full-bleed illustration pinned to the bottom. Opt-in per section via an optional `asset` on `CaseStudyPoint`; a section only becomes a card grid when *every* point in it has one, otherwise it falls back to the original plain text list — so a study whose visuals aren't made yet keeps its old look and flips over the moment its data file declares assets. Every asset is authored at 1086×900, and the card's well locks that ratio (`aspect-[1086/900]`), which is why one rule lands on the design's 362×300 desktop and 370×306.63 mobile wells exactly and the image only ever scales to the card's width — never re-cropped. Two columns at `≥600px`, one below; an odd point count lets the last card span the full width.
 - **Design tokens** — colours and fonts are defined once in `globals.css` (`@theme`) and referenced everywhere (`bg-page`, `text-textPrimary`, etc.).
 - **Custom dashed hairlines** — the exact 10px/10px dashes from the design can't be done with `border-dashed` (the browser controls dash length), so they're painted with a small, composable background-gradient utility system. Full walkthrough in [`learn/dashed-borders.md`](learn/dashed-borders.md).
 - **Spring hover interactions** — the case-study cards and sidebar links animate with a spring easing (`--ease-spring-gentle`) sampled from Figma. Walkthrough in [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md).

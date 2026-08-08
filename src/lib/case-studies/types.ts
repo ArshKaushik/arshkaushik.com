@@ -15,7 +15,26 @@ export type CaseStudyMeta = { label: string; value: string };
 /** A "What I did" or "Impact" bullet: a bold lead-in (the action, or the
  *  headline metric) plus supporting detail. `body` may be "" when the whole
  *  bullet is a single statement. Render as e.g. `<strong>{lead}</strong> {body}`. */
-export type CaseStudyPoint = { lead: string; body: string };
+export type CaseStudyPoint = {
+    lead: string;
+    body: string;
+    /** Optional illustration, rendered full-bleed at the bottom of the point
+     *  card. Path under /public, e.g.
+     *  "/csAssets/designSystem/whatIDid-asset1.png".
+     *
+     *  Every csAsset is authored at 1086x900. The card's asset well locks that
+     *  ratio, so the image only ever scales to the card's width — never
+     *  re-cropped, never distorted, identical framing on desktop and mobile.
+     *
+     *  All-or-nothing per section: a section renders as the card grid only when
+     *  EVERY point in it has an asset, otherwise the whole section falls back to
+     *  the plain text list. That's what lets a case study whose assets haven't
+     *  been made yet keep its current look instead of showing empty wells. */
+    asset?: string;
+    /** Alt text for `asset`. Omit for decorative illustrations — the point's own
+     *  lead/body already carries the meaning, so an unset value renders alt="". */
+    assetAlt?: string;
+};
 
 export type CaseStudy = {
     /** URL id for the future detail route, e.g. "design-system" → /work/design-system */
