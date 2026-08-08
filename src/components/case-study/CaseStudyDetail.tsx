@@ -141,17 +141,9 @@ export default function CaseStudyDetail({
                 </p>
             </Section>
 
-            <Section heading="What I did">
-                {study.whatIDid.map((point) => (
-                    <Point key={point.lead} point={point} />
-                ))}
-            </Section>
+            <PointsSection heading="What I did" points={study.whatIDid} />
 
-            <Section heading="Impact">
-                {study.impact.map((point) => (
-                    <Point key={point.lead} point={point} />
-                ))}
-            </Section>
+            <PointsSection heading="Impact" points={study.impact} />
 
             <Section heading="The Hardest Call">
                 <p className="text-[14px] leading-relaxed text-textSecondarySurface">
@@ -185,5 +177,99 @@ function Point({ point }: { point: CaseStudyPoint }) {
             <span className="text-textPrimary">{renderInline(point.lead)}</span>
             {point.body ? <> {renderInline(point.body)}</> : null}
         </p>
+    );
+}
+
+// "What I did" / "Impact" — the only two sections whose points can carry a
+// visual (Figma 729:75733 desktop / 784:77819 mobile). Owns its own heading
+// rather than reusing Section, because the card grid sits on a 12px rhythm
+// while every other section stays on Section's 8px one.
+//
+// All-or-nothing: cards only when EVERY point has an asset. A half-converted
+// section (cards next to bare paragraphs) reads as broken, and the studies
+// whose assets don't exist yet should keep today's text list untouched — they
+// switch over on their own the moment their data file declares assets.
+function PointsSection({
+    heading,
+    points,
+}: {
+    heading: string;
+    points: CaseStudyPoint[];
+}) {
+    const asCards = points.length > 0 && points.every((p) => p.asset);
+
+    return (
+        <section
+            className={`flex w-full flex-col ${asCards ? "gap-3" : "gap-2"}`}
+        >
+            <h2 className="text-[20px] text-textPrimary">{heading}</h2>
+            {asCards ? (
+                <div className="grid w-full grid-cols-1 gap-3 min-[600px]:grid-cols-2">
+                    {points.map((point, i) => (
+                        <PointCard
+                            key={point.lead}
+                            point={point}
+                            // An odd point count leaves the last card alone in
+                            // its row; it spans both columns instead of sitting
+                            // beside a gap.
+                            span={
+                                points.length % 2 === 1 &&
+                                i === points.length - 1
+                            }
+                        />
+                    ))}
+                </div>
+            ) : (
+                points.map((point) => <Point key={point.lead} point={point} />)
+            )}
+        </section>
+    );
+}
+
+// A point rendered as a card: the same lead/body copy at the top, its visual
+// full-bleed at the bottom. No radius, no border — just the grey fill, matching
+// the design and the rest of this codebase (there is not one rounded-* class in
+// src/).
+//
+// min-h (not a fixed h-[440px]): at the design's 362px card width the asset well
+// resolves to exactly 300px, leaving Figma's 140px text region. But this card
+// keeps the file's leading-relaxed instead of the design's tighter leading, so a
+// 5-line point needs ~114px rather than ~92px and pushes past 440px. Letting the
+// card grow beats clipping the copy; the grid stretches row-mates to match, so
+// two cards in a row still line up.
+function PointCard({ point, span }: { point: CaseStudyPoint; span: boolean }) {
+    return (
+        <div
+            className={`flex min-h-[440px] w-full flex-col justify-between bg-page ${
+                span ? "min-[600px]:col-span-2" : ""
+            }`}
+        >
+            <p className="p-6 text-[14px] leading-relaxed text-textSecondarySurface">
+                <span className="text-textPrimary">
+                    {renderInline(point.lead)}
+                </span>
+                {point.body ? <> {renderInline(point.body)}</> : null}
+            </p>
+
+            {/* aspect-[1086/900] is the authored ratio of every csAsset, and it
+                happens to be the ratio of BOTH design wells (362x300 desktop,
+                370x306.63 mobile — 1.2067 either way). Locking it here means one
+                rule reproduces both breakpoints exactly, and the image only ever
+                scales to the card's width. Deliberately a plain <img>, not
+                next/image: the optimizer is a resampler we don't control, and
+                sharp is a devDependency so it isn't available at runtime anyway
+                (learn/svg-thumbnail-blur.md §9). Lazy because these sit far
+                below the fold in a scrolling overlay. */}
+            <div className="aspect-[1086/900] w-full overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element -- see above: next/image is the resampler we're removing, and sharp isn't a runtime dep */}
+                <img
+                    src={point.asset}
+                    alt={point.assetAlt ?? ""}
+                    loading="lazy"
+                    decoding="async"
+                    className="block size-full object-cover"
+                />
+            </div>
+        </div>
     );
 }
