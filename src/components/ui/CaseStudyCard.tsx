@@ -20,16 +20,14 @@ export default function CaseStudyCard({
     slug,
     title,
     description,
-    thumbnailSvg,
+    thumbnail,
     isFirst = false,
 }: {
     slug: string;
     title: string;
     description: string;
-    // Pre-rendered inline <svg> markup (see inline-svg.ts). Computed by the
-    // caller (a Server Component) rather than here, since this component is
-    // also reachable from client-rendered trees and can't touch Node's `fs`.
-    thumbnailSvg?: string | false;
+    // Path to the study's thumbnail under /public (see CaseStudy.thumbnail).
+    thumbnail?: string;
     isFirst?: boolean;
 }) {
     return (
@@ -39,29 +37,31 @@ export default function CaseStudyCard({
                 isFirst ? "dash-t" : ""
             }`}
         >
-            {/* Figma: "thumbnail" — image slot. Shows the study's thumbnailCover
-                SVG, cropped to fill; an empty box until set. Rendered as
-                inline <svg> — the ONLY approach that measured pixel-crisp in
-                every engine/DPR cell (learn/svg-thumbnail-blur.md §3), and it
-                stays crisp under browser zoom and scaled macOS displays where
-                any raster goes soft. Two raster generations were tried and
-                rejected on visual quality (§1-§8: <img src=svg> WebKit blur;
-                §9: WebP softness) — Arsh's call: the page-weight cost of
-                inlining is accepted for now, quality wins (§10).
-                preserveAspectRatio="xMinYMid slice" = SVG's own equivalent of
-                object-cover + object-left: per Figma, the image should stay
+            {/* Figma: "thumbnail" — image slot. Shows the study's thumbnail,
+                cropped to fill; an empty box until set (bg-surface matches the
+                card, so an unset thumbnail is invisible rather than a hole).
+                Keep h-[296px]: the card's min-[600px]:h-[441px] above is
+                arithmetically bound to it (296 + 24 gap + 73 text + 48 pad).
+                object-left, NOT the default center: per Figma the image stays
                 anchored to the LEFT edge as the card narrows across
                 breakpoints, so the same content is always visible there and
-                only the right side gets progressively cropped — not a
-                symmetric center-crop that would shift what's visible on both
-                edges as the container resizes. */}
+                only the right side crops progressively — a center-crop would
+                shift what's visible on both edges as the container resizes.
+                (This is what preserveAspectRatio="xMinYMid slice" did while
+                the thumbnail was an inline <svg>.)
+                overflow-hidden on the wrapper is what clips that crop.
+                The first card is the home page's LCP candidate, so it loads
+                eagerly at high priority; the rest stay lazy. */}
             <div className="relative h-[296px] w-full overflow-hidden bg-surface">
-                {thumbnailSvg && (
-                    <div
-                        role="img"
-                        aria-label={`${title} preview`}
-                        className="absolute inset-0"
-                        dangerouslySetInnerHTML={{ __html: thumbnailSvg }}
+                {thumbnail && (
+                    // eslint-disable-next-line @next/next/no-img-element -- next/image is the resampler we removed; sharp is a devDependency so it isn't available at runtime anyway
+                    <img
+                        src={thumbnail}
+                        alt=""
+                        loading={isFirst ? "eager" : "lazy"}
+                        fetchPriority={isFirst ? "high" : "auto"}
+                        decoding="async"
+                        className="block size-full object-cover object-left"
                     />
                 )}
             </div>

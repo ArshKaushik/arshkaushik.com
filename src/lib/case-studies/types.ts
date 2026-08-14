@@ -45,14 +45,26 @@ export type CaseStudy = {
     deck: string;
     /** Short teaser for the home "Selected work" card */
     summary: string;
-    /** One SVG illustration used for BOTH the home card thumbnail and the
-     *  detail-view visual. Path under /public, e.g.
-     *  "/thumbnails/designSystem.svg" — read server-side by getInlineSvg()
-     *  and embedded as inline <svg> markup (the only pixel-crisp pipeline;
-     *  see learn/svg-thumbnail-blur.md). Optional; each slot falls back to
-     *  an empty box when unset. Cropping is per-slot via
-     *  preserveAspectRatio, chosen by the caller. */
-    thumbnailCover?: string;
+    /** One image used for BOTH the home card thumbnail and the detail-view
+     *  visual. Path under /public, e.g. "/thumbnails/designSystem.webp" —
+     *  rendered with a plain <img>, no server-side file read involved.
+     *
+     *  Exported from Figma at 2208x1184: exactly 4x the card surface
+     *  (552x296) and 3x the detail surface (736x394), so one file serves both
+     *  at an integer multiple. RGBA — the soft drop shadow is real
+     *  transparency, and composites over each slot's own background
+     *  (bg-surface on the card, bg-page on the detail hero).
+     *
+     *  This replaced an inline-<svg> pipeline. The vectors were sharper in
+     *  principle, but inlining them put ~1.4MB of markup in the HTML — and
+     *  Next duplicated it again in the RSC payload, making the home page
+     *  2,833KB of which only 14KB was the actual page. Vercel bills ISR cache
+     *  reads in 8KB units, so that cost 354 read units per request instead of
+     *  ~2 and consumed 75% of the free tier on almost no traffic.
+     *
+     *  Optional; each slot falls back to an empty box when unset. Cropping is
+     *  per-slot via object-position, chosen by the caller. */
+    thumbnail?: string;
     /** Metadata table rows, in order */
     meta: CaseStudyMeta[];
     /** Shared company/context paragraph (see shared.ts) */
