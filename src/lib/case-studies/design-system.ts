@@ -33,44 +33,44 @@ export const designSystem: CaseStudy = {
         {
             lead: "Went code-first.",
             body: "Stress-tested agentic AI on production-grade output, then rebuilt the system directly in code on a new stack — leaving the Figma-to-code handoff behind.",
-            asset: "/csAssets/designSystem/whatIDid-asset1.png",
+            asset: "/csAssets/designSystem/whatIDid-asset1.webp",
         },
         {
             lead: "Built a custom MCP.",
             body: "Gave the AI agent live access to the design system, so any feature is auto-checked for compliance — instead of designers manually pointing AI at a cloned repo every build.",
-            asset: "/csAssets/designSystem/whatIDid-asset2.png",
+            asset: "/csAssets/designSystem/whatIDid-asset2.webp",
         },
         {
             lead: "Made it a two-way loop.",
             body: "When the agent flags a gap, it either re-references the rule or surfaces a missing one to contribute back — so the whole org evolves the system, not one central team.",
-            asset: "/csAssets/designSystem/whatIDid-asset3.png",
+            asset: "/csAssets/designSystem/whatIDid-asset3.webp",
         },
         {
             lead: "Set the governance.",
             body: "Defined how designers update components and how engineers consume them, with Storybook as the component source of truth and a documentation layer for everyone else.",
-            asset: "/csAssets/designSystem/whatIDid-asset4.png",
+            asset: "/csAssets/designSystem/whatIDid-asset4.webp",
         },
     ],
     impact: [
         {
             lead: "30% faster design-to-ship",
             body: "measured against the prior end-to-end feature average (1.5–2 months, validation loop included).",
-            asset: "/csAssets/designSystem/impact-asset1.png",
+            asset: "/csAssets/designSystem/impact-asset1.webp",
         },
         {
             lead: "Design-system debt: 6 months to clear → 1 week",
             body: "and often none.",
-            asset: "/csAssets/designSystem/impact-asset2.png",
+            asset: "/csAssets/designSystem/impact-asset2.webp",
         },
         {
             lead: "Adopted org-wide",
             body: "with the entire suite migrated off Angular in 2.5 months.",
-            asset: "/csAssets/designSystem/impact-asset3.png",
+            asset: "/csAssets/designSystem/impact-asset3.webp",
         },
         {
             lead: "The design↔dev validation back-and-forth disappeared",
             body: "one role now owns both sides.",
-            asset: "/csAssets/designSystem/impact-asset4.png",
+            asset: "/csAssets/designSystem/impact-asset4.webp",
         },
     ],
     hardestCall:

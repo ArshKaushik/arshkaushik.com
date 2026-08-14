@@ -621,6 +621,77 @@ source of truth, and §9's one-liner regenerates the WebPs from a fresh export.
 `sharp` is deliberately kept as a devDependency: it's what performs that
 PNG → WebP conversion, and it is now the only thing that uses it.
 
+### The one deleted file that deserves an explanation: `scripts/render-thumbnails.mjs`
+
+Worth spelling out, because its purpose isn't obvious from the name, and it very
+nearly became the answer to this whole problem.
+
+**Where it came from.** Act two of the blur saga (`svg-thumbnail-blur.md` §9).
+After `<img src="*.svg">` was measured to blur on WebKit, the next attempt was
+pre-rendered rasters — but *exact-size* ones, because the failure before that had
+been `next/image` resampling. This script was that pipeline.
+
+**What it did.** Run as `pnpm thumbs`. For each of the three SVG masters, and each
+of seven target sizes, it asked librsvg (via sharp's `density` option) to
+rasterize the vectors **natively at that exact pixel width** — never rendering
+once and resizing after:
+
+```js
+const density = (72 * w) / VIEWBOX_WIDTH;   // sharp reads SVG at 72dpi
+const { data, info } = await sharp(src, { density }).raw().toBuffer(...);
+```
+
+The seven targets were derived from the two render surfaces:
+
+| Targets | Surface |
+|---|---|
+| 552×296, 1104×592, 1656×888 | home card at 1×/2×/3× (always drawn 552 CSS px wide) |
+| 736×394, 1472×788, 2208×1182 | detail hero at 1×/2×/3× (736 CSS px at ≥900px) |
+| 1072×574 | detail hero at 2× for the 536px (600–900px) tier |
+
+Three studies × seven sizes = **21 files**, named `${study}-${w}.webp`
+(e.g. `designSystem-1104.webp`). The only post-processing was a ≤2px vertical
+centre-crop, because the detail box's 736:394 is a hair wider than the masters'
+552:296. It **threw rather than resample** if a render came back at unexpected
+dimensions — the guard that kept "exact size" honest.
+
+**Why it was still in the repo at all.** It wasn't in the shipping path. Act three
+reverted to inline SVG, but the script was kept "for whenever the weight question
+is reopened."
+
+**It got one final use — this investigation.** The weight question *was* reopened,
+and this script generated the size ladder that was measured and then rejected
+(§10), plus the side-by-side renders used to judge fidelity. It answered its own
+question and became redundant in the same breath: with Figma now doing the
+rasterizing, there is no vector left for librsvg to render.
+
+**Its legacy is one line.** `WEBP_OPTIONS = { nearLossless: true, quality: 60,
+effort: 6 }`, carrying a comment that near-lossless measured *smaller* than lossy
+quality-90 on all three masters while being visually transparent. The final
+conversion — and the command now in the README — uses exactly those settings.
+
+### The point-card assets got the same treatment
+
+Separate pipeline, same reasoning. The eight `CaseStudyPoint.asset` illustrations
+in `public/csAssets/designSystem/` were Figma PNG exports at 1086×900. Converted
+with the identical settings:
+
+| | PNG | WebP |
+|---|---|---|
+| 8 point-card assets | 2,402 KB | **1,123 KB** (2.1× smaller) |
+
+No quota effect — they were always static files on the free CDN — but a real
+bandwidth saving for anyone who scrolls a case study. Worth noting how sharp
+handled transparency, since it varied per file and looked alarming at first:
+
+- Four PNGs carried an alpha channel that was **fully opaque** (`min = 255`).
+  Sharp dropped it. That is lossless and correct — it was storing "no
+  transparency" in a whole extra channel.
+- Four carried **real** transparency (`min = 0` or `51`). Sharp preserved it.
+
+Verified per-file before deleting the PNGs, because "hasAlpha: false" on half the
+outputs is exactly what a genuine alpha-loss bug would also look like.
+
 ---
 
 ## 13. Lessons

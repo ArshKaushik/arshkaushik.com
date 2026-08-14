@@ -26,12 +26,16 @@ pnpm start      # serve the production build
 pnpm lint       # ESLint
 ```
 
-### Regenerating a thumbnail
+### Regenerating an image asset
 
-Case-study thumbnails are exported from Figma as PNG at **2208×1184** (exactly 4×
-the home card's 552×296 box and 3× the detail hero's 736×394), then converted once
-to WebP and committed. There's no build step — `sharp` is a devDependency used
-only for this:
+Both image pipelines work the same way: **export PNG from Figma → convert once to
+WebP → commit.** There's no build step; `sharp` is a devDependency used only for
+this conversion.
+
+| Asset | Export at | Lives in |
+|---|---|---|
+| Case-study thumbnail | **2208×1184** — exactly 4× the home card's 552×296 box and 3× the detail hero's 736×394, so one file serves both | `public/thumbnails/<study>.webp` |
+| Point-card illustration | **1086×900** — the ratio the card's asset well locks | `public/csAssets/<study>/<section>-assetN.webp` |
 
 ```bash
 # with the fresh PNG export sitting at /tmp/designSystem.png
@@ -94,8 +98,8 @@ learn/                            # Deep-dive docs explaining non-trivial implem
 └── assets/                       #   Screenshots referenced by those docs (not served to visitors)
 public/                           # Static assets — all of it referenced; nothing dead is deployed
 ├── thumbnails/<study>.webp       #   Case-study thumbnails, 2208×1184 (home card + detail hero)
-└── csAssets/<study>/             #   Per-point card illustrations, 1086×900 PNGs exported from Figma
-                                  #   (whatIDid-assetN.png / impact-assetN.png)
+└── csAssets/<study>/             #   Per-point card illustrations, 1086×900 WebP (Figma PNG export, converted)
+                                  #   (whatIDid-assetN.webp / impact-assetN.webp)
 next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* -> PostHog US Cloud)
 ```
 

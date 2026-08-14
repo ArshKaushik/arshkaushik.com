@@ -20,7 +20,7 @@ export type CaseStudyPoint = {
     body: string;
     /** Optional illustration, rendered full-bleed at the bottom of the point
      *  card. Path under /public, e.g.
-     *  "/csAssets/designSystem/whatIDid-asset1.png".
+     *  "/csAssets/designSystem/whatIDid-asset1.webp".
      *
      *  Every csAsset is authored at 1086x900. The card's asset well locks that
      *  ratio, so the image only ever scales to the card's width — never
