@@ -1,5 +1,41 @@
 # Blurry Case-Study Thumbnails on Mobile — `next/image` and SVG, Explained
 
+> ## ⚠️ SUPERSEDED — the site no longer ships inline SVG
+>
+> **The thumbnails are now a single WebP per study (exported from Figma as PNG at
+> 2208×1184, converted once), rendered with a plain `<img>`. `src/lib/inline-svg.ts`
+> has been deleted and `CaseStudy.thumbnailCover` is now `CaseStudy.thumbnail`.**
+>
+> **Why:** nothing in this document turned out to be wrong — inline SVG really was
+> the sharpest option, and §10's call was correct *on visual-quality grounds*. What
+> it never weighed was **hosting cost**. Inlining put ~1.4 MB of SVG markup into the
+> HTML, and Next.js duplicated all of it again in the RSC hydration payload, making
+> the home page **2,833 KB** of which only **14 KB** was the actual page. Vercel bills
+> ISR cache reads in **8 KB units**, so every request for that page cost **354 read
+> units instead of ~2** — which consumed 75% of the 1,000,000-read free tier on fewer
+> than 10 real visitors in five days, with automatic project pausing at 100%.
+>
+> Moving the images out of the HTML took the home page to **30 KB / 3 read units**,
+> and cut projected usage from ~470K to ~4K units a month. The before/after pixel
+> diff came out at a mean deviation of ≤1.03/255 across every breakpoint, so the
+> visual cost was negligible.
+>
+> **Full story, with the Vercel dashboard screenshots and the measurements:
+> [`vercel-isr-quota.md`](vercel-isr-quota.md).**
+>
+> This document is kept because the diagnostic work in it is still sound and still
+> useful: §3's engine/DPR blur matrix, §9's three raster-blur mechanisms, and the
+> `<img src="*.svg">` WebKit bug are all real and were all re-confirmed during the
+> replacement.
+>
+> **Note on files:** the SVG masters have since been **deleted** from
+> `public/thumbnails/`, along with `scripts/render-thumbnails.mjs` and the
+> `pnpm thumbs` script — all three were inputs to a pipeline nothing uses any more.
+> They remain in git history (`git log -- public/thumbnails`) if they're ever needed
+> again. `public/thumbnails/` now holds exactly three `.webp` files. So where this
+> document says the masters "stay" or the tooling is "kept", read that as describing
+> the state at the time of writing, not today.
+
 The story of a bug that only showed up on **real phones**: the case-study
 thumbnails (large, illustrated SVG mockups) looked blurry in both Safari and
 Chrome on mobile, but perfectly sharp on desktop — even when the desktop
@@ -7,21 +43,23 @@ window was resized down to a "mobile" width. That last detail is the whole
 clue: it rules out CSS/breakpoints entirely and points at something tied to
 the *device*, not the *viewport*.
 
-The fix lives in **`src/lib/inline-svg.ts`** (new), called from each route
-that renders a thumbnail (`CaseStudies.tsx`, `work/[slug]/page.tsx`,
+The fix lived in **`src/lib/inline-svg.ts`** (since deleted), called from each
+route that renders a thumbnail (`CaseStudies.tsx`, `work/[slug]/page.tsx`,
 `@modal/(.)work/[slug]/page.tsx`) and threaded down as a plain string prop
-into **`CaseStudyCard.tsx`**/**`CaseStudyDetail.tsx`** — §5 explains why it's
+into **`CaseStudyCard.tsx`**/**`CaseStudyDetail.tsx`** — §5 explains why it was
 split up this way rather than called directly inside those two components.
 
-> **This document is now a three-act history.** §1–§8 describe the original
+> **This document is a four-act history.** §1–§8 describe the original
 > inline-SVG fix above; it was later replaced by rasterized WebPs (inlining
 > is what made pages 11 MB — see `fable5-check/01-2-code-review-fix.md`),
 > which blurred for a *different* reason — §9 covers that second blur and
-> the exact-size raster pipeline built to cure it. §10 is the final act:
-> **inline SVG is back** (quality over weight, by explicit call), so
-> `inline-svg.ts` exists again and is what the site ships today. For a
-> line-by-line walkthrough of the final code, old vs. new, see the
-> companion doc `learn/inline-svg-thumbnails-explained.md`.
+> the exact-size raster pipeline built to cure it. §10 is the third act:
+> **inline SVG came back**, quality over weight, by explicit call.
+>
+> **Act four is elsewhere.** That weight turned out to be a *billing* problem, not
+> just a performance one, and inline SVG was removed for good — see the banner at
+> the very top and [`vercel-isr-quota.md`](vercel-isr-quota.md). Everything below
+> §10 describes the state of the code as it was then, not as it is now.
 
 ---
 
@@ -420,8 +458,9 @@ and the screen, twice — plus a third, phone-only failure:
 
 "Go back to the SVGs" was considered and rejected with §3's matrix: `<img
 src=".svg">` is *measurably worse* blur in WebKit at every DPR, and inline SVG
-is the 11 MB problem. The vector masters stay in `public/thumbnails/` — but as
-the *source* the rasters are rendered from, never something a browser loads.
+is the 11 MB problem. The vector masters stayed in `public/thumbnails/` at this
+point — but as the *source* the rasters were rendered from, never something a
+browser loaded. (They have since been deleted; see the banner at the top.)
 
 ### The fix: a file for every size the layout draws, and nothing in between
 
@@ -504,8 +543,13 @@ So the final call — Arsh's, explicitly, quality over page weight — restores
 the inlined files are now the **SVGO'd masters**, so the home page costs
 **2.9 MB raw / 538 KB gzip** instead of the original 11.2 MB (heaviest study
 page 4.5 MB, was 18.1 MB). `next/image` stays out of the bundle. The
-exact-size tooling (`pnpm thumbs` + `scripts/render-thumbnails.mjs`) stays in
-the repo for whenever the weight problem is revisited.
+exact-size tooling (`pnpm thumbs` + `scripts/render-thumbnails.mjs`) was kept in
+the repo for whenever the weight problem was revisited.
+
+> The weight problem *was* revisited — see [`vercel-isr-quota.md`](vercel-isr-quota.md).
+> The resolution didn't need this tooling: the thumbnails are now a single WebP per
+> study exported from Figma, so the script, the `pnpm thumbs` command and the SVG
+> masters it consumed have all been deleted.
 
 The closing lesson: **delivery pipelines can be verified; perception is
 decided by eyes.** Every mechanical claim in §9 was true, and the change was

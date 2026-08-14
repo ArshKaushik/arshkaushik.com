@@ -1,14 +1,12 @@
 import { caseStudies } from "@/lib/case-studies";
-import { getInlineSvg } from "@/lib/inline-svg";
 import CaseStudyCard from "@/components/ui/CaseStudyCard";
 
-// getInlineSvg touches Node's `fs`, so it's called HERE (a Server Component)
-// rather than inside CaseStudyCard itself — CaseStudyCard is also reachable
-// from client-rendered trees elsewhere, and `fs` can't be bundled for the
-// browser. See inline-svg.ts / learn/svg-thumbnail-blur.md (§10 records why
-// the site is back on inline SVG after two raster generations: visual
-// quality, by Arsh's explicit call; the SVGO'd files keep the cost at ~2.9MB
-// of home HTML instead of the original 11MB).
+// Thumbnails are now a plain path passed straight through to an <img> — no
+// server-side file read, so nothing here has to be a Server Component on the
+// thumbnail's account. This replaced an inline-<svg> pipeline that read the
+// files with Node's `fs`: see the `thumbnail` field's comment in
+// lib/case-studies/types.ts for why (2,833KB of home HTML, billed as 354
+// Vercel ISR read units per request instead of ~2).
 export default function CaseStudies() {
     return (
         <section className="flex w-full flex-col items-start">
@@ -28,10 +26,7 @@ export default function CaseStudies() {
                     slug={study.slug}
                     title={study.title}
                     description={study.summary}
-                    thumbnailSvg={
-                        study.thumbnailCover &&
-                        getInlineSvg(study.thumbnailCover, "xMinYMid slice")
-                    }
+                    thumbnail={study.thumbnail}
                     isFirst={index === 0}
                 />
             ))}

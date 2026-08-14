@@ -6,8 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "thumbs": "node scripts/render-thumbnails.mjs"
+    "lint": "eslint"
   },
   "dependencies": {
     "@microsoft/clarity": "^1.0.2",

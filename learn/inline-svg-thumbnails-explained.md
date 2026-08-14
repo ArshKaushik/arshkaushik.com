@@ -1,5 +1,32 @@
 # Inline SVG Thumbnails — Old Code vs. New Code, Explained
 
+> ## ⚠️ SUPERSEDED — the "NEW (current)" code below is no longer what ships
+>
+> **The site now uses a single WebP per study (Figma PNG export at 2208×1184,
+> converted once) behind a plain `<img>`. `src/lib/inline-svg.ts` is deleted and
+> `CaseStudy.thumbnailCover` is now `CaseStudy.thumbnail`.**
+>
+> **Why:** not a quality problem — a **billing** one. Inlining the SVGs put ~1.4 MB
+> of markup in the HTML, which Next.js then duplicated in the RSC hydration payload
+> (the mechanism this doc explains in the server/client-boundary section). The home
+> page reached **2,833 KB**, only **14 KB** of which was the real page. Vercel bills
+> ISR reads in **8 KB units**, so each request cost **354 reads instead of ~2** and
+> burned 75% of the free tier on almost no traffic. It is now **30 KB / 3 reads**.
+>
+> **Full story: [`vercel-isr-quota.md`](vercel-isr-quota.md).**
+>
+> Two things make this document *more* relevant after the change, not less:
+>
+> - The **"OLD"** column below — raster files served through a plain `<img>` — is
+>   essentially what the site has gone back to. Reading it as the *current*
+>   approach is closer to the truth than reading the "NEW" column.
+> - §6 gotcha #4 (**`sizes` describes the drawn width, not the box width**) is
+>   exactly why a `srcset` size ladder was measured and rejected: the home card is
+>   always drawn 552 CSS px wide, so phones gain only ~1.1× from a ladder.
+>
+> The `thumbnailCover` → `thumbnail` rename was done deliberately, on this doc's own
+> advice: renaming the field turns every missed reference into a compile error.
+
 This is the **code walkthrough** companion to `svg-thumbnail-blur.md`. That
 doc is the detective story (three generations of blur, how each was
 diagnosed); this one sits at the code level and answers: *what exactly
@@ -74,8 +101,8 @@ silent runtime bug into a loud compile error. Cheap insurance.
 
 ## 3. OLD code: pixel-exact WebPs via `<img srcset>`
 
-The raster era's final form. A script (`pnpm thumbs`, still in
-`scripts/render-thumbnails.mjs`) rendered the SVG master into a WebP at
+The raster era's final form. A script (`pnpm thumbs`, then at
+`scripts/render-thumbnails.mjs`, since deleted) rendered the SVG master into a WebP at
 **every size the layout actually draws** — 552/1104/1656 wide for the home
 card (1×/2×/3× of its fixed 552×296 box) — and the component listed them all:
 
@@ -343,8 +370,14 @@ Two honest footnotes on the weight number:
 The masters being inlined are the **SVGO-optimized** files (~70 % smaller
 than the raw Figma exports, drawing untouched) — that's why this revert
 costs 2.9 MB and not the original 11.2 MB. And the raster tooling
-(`pnpm thumbs`) stays in `scripts/` for whenever the weight question is
+(`pnpm thumbs`) was kept in `scripts/` for whenever the weight question was
 reopened.
+
+> It was reopened — that 2.9 MB turned out to cost **354 Vercel ISR read units per
+> request** and consumed 75% of the free tier
+> ([`vercel-isr-quota.md`](vercel-isr-quota.md)). The thumbnails are now one WebP per
+> study, and the SVG masters, `scripts/render-thumbnails.mjs` and the `pnpm thumbs`
+> command have all been deleted.
 
 ---
 

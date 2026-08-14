@@ -24,9 +24,33 @@ Other scripts:
 pnpm build      # production build
 pnpm start      # serve the production build
 pnpm lint       # ESLint
-pnpm thumbs     # render exact-size WebP thumbnails from the SVG masters
-                # (tooling kept for a future page-weight pass — the app ships inline SVG today)
 ```
+
+### Regenerating an image asset
+
+Both image pipelines work the same way: **export PNG from Figma → convert once to
+WebP → commit.** There's no build step; `sharp` is a devDependency used only for
+this conversion.
+
+| Asset | Export at | Lives in |
+|---|---|---|
+| Case-study thumbnail | **2208×1184** — exactly 4× the home card's 552×296 box and 3× the detail hero's 736×394, so one file serves both | `public/thumbnails/<study>.webp` |
+| Point-card illustration | **1086×900** — the ratio the card's asset well locks | `public/csAssets/<study>/<section>-assetN.webp` |
+
+```bash
+# with the fresh PNG export sitting at /tmp/designSystem.png
+node -e '
+const sharp = require("sharp");
+sharp("/tmp/designSystem.png")
+  .webp({ nearLossless: true, quality: 60, effort: 6 })
+  .toFile("public/thumbnails/designSystem.webp")
+  .then(({ size }) => console.log((size / 1024).toFixed(0), "KB"));
+'
+```
+
+`nearLossless` deviates from the source by at most 2/255 and is ~2.5× smaller than
+PNG. Keep 2208×1184 — see [`learn/vercel-isr-quota.md`](learn/vercel-isr-quota.md)
+§10 for why a bigger export is not sharper.
 
 ### Environment variables
 
@@ -67,15 +91,15 @@ src/
 │   └── case-study/               #   CaseStudyDetail (shared card + point cards), CaseStudyOverlay, BackNav
 └── lib/
     ├── content.ts                # Page copy (identity, nav, hero) as data
-    ├── inline-svg.ts             # Reads a trusted local SVG for inline embedding (avoids next/image's mobile-blur bug)
     ├── og-fonts.ts               # Build-time Google-Fonts fetch for the og:images (satori can't read next/font files)
     └── case-studies/             # Case-study content module — typed schema, one file per study
 
 learn/                            # Deep-dive docs explaining non-trivial implementations
-scripts/                          # render-thumbnails.mjs — `pnpm thumbs` raster tooling (unused by the running app)
-public/                           # Static assets (theme-aware favicons, thumbnails/ SVG masters)
-└── csAssets/<study>/             #   Per-point card illustrations, 1086×900 PNGs exported from Figma
-                                  #   (whatIDid-assetN.png / impact-assetN.png)
+└── assets/                       #   Screenshots referenced by those docs (not served to visitors)
+public/                           # Static assets — all of it referenced; nothing dead is deployed
+├── thumbnails/<study>.webp       #   Case-study thumbnails, 2208×1184 (home card + detail hero)
+└── csAssets/<study>/             #   Per-point card illustrations, 1086×900 WebP (Figma PNG export, converted)
+                                  #   (whatIDid-assetN.webp / impact-assetN.webp)
 next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* -> PostHog US Cloud)
 ```
 
@@ -90,7 +114,7 @@ next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* ->
 - **Custom dashed hairlines** — the exact 10px/10px dashes from the design can't be done with `border-dashed` (the browser controls dash length), so they're painted with a small, composable background-gradient utility system. Full walkthrough in [`learn/dashed-borders.md`](learn/dashed-borders.md).
 - **Spring hover interactions** — the case-study cards and sidebar links animate with a spring easing (`--ease-spring-gentle`) sampled from Figma. Walkthrough in [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md).
 - **Theme-aware favicons** — the browser tab icon switches with the OS/browser colour scheme via `prefers-color-scheme` (light/dark PNGs wired through the Next.js Metadata API in `layout.tsx`).
-- **Inline SVG thumbnails, not `next/image`** — the case-study thumbnails are large, hand-illustrated SVGs, rendered as inline `<svg>` markup (`src/lib/inline-svg.ts`) because that's the only pipeline that stays pixel-crisp on every engine, DPR, zoom level, and scaled display. This survived a full experiment cycle: `<img>`-tag SVG measurably blurs on WebKit, and a later exact-size WebP pipeline was provably 1:1 yet still read softer than native vector paint — so vectors won on visual quality, by explicit call. The inlined files are SVGO-optimized (~70% smaller than the raw Figma exports; home HTML ≈ 2.9 MB raw / 538 KB gzipped is the accepted trade, with the raster tooling kept in `scripts/` for a future weight pass). Three-act saga in [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md); line-by-line code walkthrough in [`learn/inline-svg-thumbnails-explained.md`](learn/inline-svg-thumbnails-explained.md).
+- **Thumbnails are one WebP per study, in a plain `<img>`** — not `next/image`, and no longer inline SVG. Exported from Figma at 2208×1184 (exactly 4× the home card's box, 3× the detail hero's), so one file serves both surfaces; the card crops left-anchored (`object-left`) and the hero centre-crops, matching the design. **This reversed an earlier decision, and the reason is worth knowing:** the thumbnails used to be embedded into the HTML as inline `<svg>` because vectors were genuinely the sharpest option — but that put ~1.4 MB of markup in the page, which Next.js then *duplicated* in the RSC hydration payload, leaving the home page at **2,833 KB of HTML for 14 KB of actual content**. Vercel bills ISR cache reads in 8 KB units, so every request cost **354 read units instead of ~2** — 75% of the 1,000,000-read free tier consumed on fewer than 10 real visitors, with automatic project pausing at 100%. It's now **30 KB / 3 units**, and the before/after pixel diff came in under 1.03/255 across every breakpoint. Full story with dashboard screenshots in [`learn/vercel-isr-quota.md`](learn/vercel-isr-quota.md); the superseded vector-era reasoning (still sound on its own terms) in [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md) and [`learn/inline-svg-thumbnails-explained.md`](learn/inline-svg-thumbnails-explained.md).
 - **Social-share ready** — `metadataBase` + Open Graph/Twitter tags in `layout.tsx`, per-study `generateMetadata`, and **og:images generated at build time** via the `opengraph-image.tsx` file convention (`next/og`; fonts fetched at build by `src/lib/og-fonts.ts`, try/caught so offline builds fall back instead of failing) — plus `sitemap.ts` and `robots.ts` sourced from the same case-study data the pages render from.
 - **Accessibility hardened** — the case-study dialog is a real focus trap (`inert` applied to everything outside it, correct in both its DOM shapes), collapsed mobile-nav links leave the tab order (`inert`), the home page has a true h1 → h2 → h3 outline, backdrop-close ignores text-selection drags and scrollbar clicks, closing a hard-loaded study doesn't pollute Back-button history (`router.replace`), and bad URLs land on a branded 404 (`not-found.tsx`).
 - **Fully responsive, three tiers** — see the dedicated [Responsive design](#responsive-design) section below for the breakpoints, why they land where they do, and the mechanism behind each one.
@@ -137,6 +161,7 @@ The [`learn/`](learn/) folder documents the trickier pieces line-by-line — the
 - [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md) — the spring-based hover reveal (title slide + description fade).
 - [`learn/case-study-modal.md`](learn/case-study-modal.md) — the URL-addressable case-study overlay: parallel + intercepting routes, the content schema, backdrop, and animation.
 - [`learn/focus-visible-outline.md`](learn/focus-visible-outline.md) — the stray focus-ring-on-close bug and the focus-management fix (`:focus-visible`).
-- [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md) — the three-act thumbnail-blur saga: `<img>`-SVG blur on WebKit → the exact-size WebP raster experiment → why inline `<svg>` won on visual quality.
-- [`learn/inline-svg-thumbnails-explained.md`](learn/inline-svg-thumbnails-explained.md) — junior-dev-level walkthrough of the final thumbnail code vs. the raster era: the server/client boundary and `fs`, `dangerouslySetInnerHTML`, `preserveAspectRatio`, `srcset`/`sizes`, and a gotchas checklist.
+- [`learn/vercel-isr-quota.md`](learn/vercel-isr-quota.md) — **how a portfolio with under 10 visitors burned 75% of a 1,000,000-request quota.** What ISR and Request Caching actually are in plain English, how to read the Vercel dashboard (with screenshots), why an "ISR read" is an 8 KB block rather than a page view, the hidden duplicate copy of every inlined SVG, and the fix. Also: why bigger images are not sharper, and two confident wrong diagnoses.
+- [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md) — *(superseded, kept for its diagnostics)* the three-act thumbnail-blur saga: `<img>`-SVG blur on WebKit → the exact-size WebP raster experiment → why inline `<svg>` won on visual quality. Its engine/DPR blur matrix is still accurate and was re-confirmed during the replacement.
+- [`learn/inline-svg-thumbnails-explained.md`](learn/inline-svg-thumbnails-explained.md) — *(superseded)* junior-dev-level walkthrough of the thumbnail code: the server/client boundary and `fs`, `dangerouslySetInnerHTML`, `preserveAspectRatio`, `srcset`/`sizes`, and a gotchas checklist. Its "OLD" column — rasters behind a plain `<img>` — is close to what the site ships today.
 - [`learn/case-study-refresh-behavior.md`](learn/case-study-refresh-behavior.md) — the "no way back to home" bug after refreshing mid-case-study, the desktop/mobile navigation fixes, and the redesign that makes a direct load look like the soft-nav overlay.
