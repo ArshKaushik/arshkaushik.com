@@ -4,6 +4,8 @@ import { caseStudies } from "@/lib/case-studies";
 import { identity } from "@/lib/content";
 import HomeContent from "@/components/sections/HomeContent";
 import CaseStudyOverlay from "@/components/case-study/CaseStudyOverlay";
+import JsonLd from "@/components/JsonLd";
+import { caseStudySchema } from "@/lib/structured-data";
 
 // The STANDALONE case-study page: what you get on a direct load / refresh /
 // shared link to /work/[slug] (interception only happens on soft, in-app
@@ -61,6 +63,12 @@ export default async function CaseStudyPage({
         <>
             <HomeContent />
             <CaseStudyOverlay study={study} closeHref="/" />
+            {/* This study as a schema.org CreativeWork. Only on the STANDALONE
+                route — the intercepted @modal route fires solely on a soft
+                in-app click, which is a human-only path; crawlers and AI
+                fetchers always land here. Same reason this is the only one of
+                the two with generateMetadata. */}
+            <JsonLd data={caseStudySchema(study)} />
         </>
     );
 }

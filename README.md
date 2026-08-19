@@ -28,14 +28,28 @@ pnpm lint       # ESLint
 
 ### Regenerating an image asset
 
-Both image pipelines work the same way: **export PNG from Figma → convert once to
-WebP → commit.** There's no build step; `sharp` is a devDependency used only for
-this conversion.
+Every image here is a Figma export, committed as a file — there's no build step and
+no runtime optimiser. Two of the three go **export PNG → convert once to WebP →
+commit**; `sharp` is a devDependency used only for that conversion. The share card is
+the exception and stays PNG (see below).
 
 | Asset | Export at | Lives in |
 |---|---|---|
 | Case-study thumbnail | **2208×1184** — exactly 4× the home card's 552×296 box and 3× the detail hero's 736×394, so one file serves both | `public/thumbnails/<study>.webp` |
 | Point-card illustration | **1086×900** — the ratio the card's asset well locks | `public/csAssets/<study>/<section>-assetN.webp` |
+| Home-page share card | **1200×630** — the OG standard. Export at this size, **don't downscale a larger one** (a native render is ~2× more faithful on thin type and hairlines) | `src/app/opengraph-image.png` |
+
+The share card is the exception to the WebP rule: **keep it PNG.** `og:image` support
+for WebP is inconsistent across LinkedIn and older crawlers, and it's the one asset
+where compatibility beats file size. It also lives in `src/app/`, not `public/`, so
+Next's file convention writes the `og:image` tags and fingerprints the URL — which is
+what makes a redesign actually bust LinkedIn's preview cache instead of showing the
+old card for weeks.
+
+> **The hero tagline is baked into that PNG.** If you reword `heroTagline` in
+> `content.ts`, the page and the meta tags update but the share card keeps the old
+> wording until you re-export it. Nothing warns you — worth a note next to whatever
+> copy change you make.
 
 ```bash
 # with the fresh PNG export sitting at /tmp/designSystem.png
@@ -74,24 +88,27 @@ src/
 │   ├── layout.tsx                #   sidebar shell, fonts, theme favicons, @modal slot, Clarity
 │   ├── page.tsx                  #   home page — re-exports HomeContent
 │   ├── not-found.tsx             #   branded 404 (dashed surface card, serif "404")
-│   ├── opengraph-image.tsx       #   build-time og:image for the root URL (next/og)
+│   ├── opengraph-image.png       #   the designed og:image for the root URL (static, 1200x630)
 │   ├── robots.ts / sitemap.ts    #   crawler rules + sitemap, sourced from the caseStudies module
+│   ├── llms.txt/route.ts         #   /llms.txt — a plain-text brief of the site, for AI tools
 │   ├── globals.css               #   Tailwind import, design tokens (@theme), custom utilities
 │   ├── @modal/                   #   parallel-route slot for the case-study overlay
 │   │   ├── default.tsx           #     slot fallback (renders nothing)
 │   │   └── (.)work/[slug]/       #     intercepts a card click → overlay over the home page
 │   └── work/[slug]/              #   direct load / refresh / shared link — renders HomeContent
 │                                  #   dimmed behind CaseStudyOverlay, same look as the soft-nav case;
-│                                  #   + per-study opengraph-image.tsx (build-time og:images ×3)
+│                                  #   + per-study opengraph-image.tsx (generated og:images ×3)
 ├── components/
 │   ├── Clarity.tsx               #   Microsoft Clarity init (mounted once in layout.tsx)
 │   ├── layout/                   #   Sidebar (route-aware, desktop + 600-900px tablet pill), MobileNavPill (<600px, collapsible)
 │   ├── sections/                 #   Hero, CaseStudies, Footer, HomeContent (composes the three, reused by both routes above)
+│   ├── JsonLd.tsx                #   renders a JSON-LD <script>; the only <script> in the codebase
 │   ├── ui/                       #   NavLink, Stat, CaseStudyCard (small reusable pieces)
 │   └── case-study/               #   CaseStudyDetail (shared card + point cards), CaseStudyOverlay, BackNav
 └── lib/
     ├── content.ts                # Page copy (identity, nav, hero) as data
-    ├── og-fonts.ts               # Build-time Google-Fonts fetch for the og:images (satori can't read next/font files)
+    ├── og-fonts.ts               # Build-time Google-Fonts fetch for the per-study og:images (satori cannot read next/font files)
+    ├── structured-data.ts        # schema.org JSON-LD (Person / WebSite / CreativeWork), built from the content modules
     └── case-studies/             # Case-study content module — typed schema, one file per study
 
 learn/                            # Deep-dive docs explaining non-trivial implementations
@@ -115,7 +132,8 @@ next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* ->
 - **Spring hover interactions** — the case-study cards and sidebar links animate with a spring easing (`--ease-spring-gentle`) sampled from Figma. Walkthrough in [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md).
 - **Theme-aware favicons** — the browser tab icon switches with the OS/browser colour scheme via `prefers-color-scheme` (light/dark PNGs wired through the Next.js Metadata API in `layout.tsx`).
 - **Thumbnails are one WebP per study, in a plain `<img>`** — not `next/image`, and no longer inline SVG. Exported from Figma at 2208×1184 (exactly 4× the home card's box, 3× the detail hero's), so one file serves both surfaces; the card crops left-anchored (`object-left`) and the hero centre-crops, matching the design. **This reversed an earlier decision, and the reason is worth knowing:** the thumbnails used to be embedded into the HTML as inline `<svg>` because vectors were genuinely the sharpest option — but that put ~1.4 MB of markup in the page, which Next.js then *duplicated* in the RSC hydration payload, leaving the home page at **2,833 KB of HTML for 14 KB of actual content**. Vercel bills ISR cache reads in 8 KB units, so every request cost **354 read units instead of ~2** — 75% of the 1,000,000-read free tier consumed on fewer than 10 real visitors, with automatic project pausing at 100%. It's now **30 KB / 3 units**, and the before/after pixel diff came in under 1.03/255 across every breakpoint. Full story with dashboard screenshots in [`learn/vercel-isr-quota.md`](learn/vercel-isr-quota.md); the superseded vector-era reasoning (still sound on its own terms) in [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md) and [`learn/inline-svg-thumbnails-explained.md`](learn/inline-svg-thumbnails-explained.md).
-- **Social-share ready** — `metadataBase` + Open Graph/Twitter tags in `layout.tsx`, per-study `generateMetadata`, and **og:images generated at build time** via the `opengraph-image.tsx` file convention (`next/og`; fonts fetched at build by `src/lib/og-fonts.ts`, try/caught so offline builds fall back instead of failing) — plus `sitemap.ts` and `robots.ts` sourced from the same case-study data the pages render from.
+- **Social-share ready** — `metadataBase` + Open Graph/Twitter tags in `layout.tsx`, per-study `generateMetadata`, and og:images wired through Next's file convention: the **home-page card is a designed static asset** (`src/app/opengraph-image.png`, 1200×630 exported from Figma — it replaced a `next/og` version that couldn't reproduce the site's 10/10 dash rhythm), while the **three case-study cards are still generated at build time** so a shared study link previews that study's own title and summary. Next fingerprints the image URL, so redesigning the card busts LinkedIn/Facebook's preview cache instead of serving the old one for weeks — plus `sitemap.ts` and `robots.ts` sourced from the same case-study data the pages render from.
+- **Machine-readable for AI, not just search engines** — recruiters increasingly ask an AI rather than Google, in two modes: *discovery* ("find me a designer who…", the AI has to match on facts) and *evaluation* ("here's his portfolio, assess him", the AI has to extract a picture from one fetch). Two things serve that. **schema.org JSON-LD** (`src/lib/structured-data.ts`) states identity as data rather than prose — name, role, location, LinkedIn/GitHub, both degrees, and a `knowsAbout` skills list *derived* from each study's Stack row, so adding a case study updates it for free. A single `@graph` defines the Person once per document; case studies reference it by `@id` rather than duplicating it. And **`/llms.txt`** (`src/app/llms.txt/route.ts`) is a plain-text brief — same idea as robots.txt, but "here's what this site is about" — carrying every study's summary, role, scope, stack and impact metrics in one fetch, because the home page is only ~142 visible words. Both are assembled from the same content modules the pages render from, so neither can drift. Full write-up, including what this deliberately does *not* claim, in [`learn/machine-readable-portfolio.md`](learn/machine-readable-portfolio.md).
 - **Accessibility hardened** — the case-study dialog is a real focus trap (`inert` applied to everything outside it, correct in both its DOM shapes), collapsed mobile-nav links leave the tab order (`inert`), the home page has a true h1 → h2 → h3 outline, backdrop-close ignores text-selection drags and scrollbar clicks, closing a hard-loaded study doesn't pollute Back-button history (`router.replace`), and bad URLs land on a branded 404 (`not-found.tsx`).
 - **Fully responsive, three tiers** — see the dedicated [Responsive design](#responsive-design) section below for the breakpoints, why they land where they do, and the mechanism behind each one.
 - **Analytics run production-only** — both Clarity (`src/components/Clarity.tsx`) and PostHog (`src/instrumentation-client.ts`) no-op under `pnpm dev`, so local testing never pollutes real visitor data. PostHog is proxied through this site's own domain (`/ingest/*`, see `next.config.ts`) rather than calling posthog.com directly, since ad-blockers commonly block the latter but not same-origin traffic.
@@ -161,6 +179,7 @@ The [`learn/`](learn/) folder documents the trickier pieces line-by-line — the
 - [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md) — the spring-based hover reveal (title slide + description fade).
 - [`learn/case-study-modal.md`](learn/case-study-modal.md) — the URL-addressable case-study overlay: parallel + intercepting routes, the content schema, backdrop, and animation.
 - [`learn/focus-visible-outline.md`](learn/focus-visible-outline.md) — the stray focus-ring-on-close bug and the focus-management fix (`:focus-visible`).
+- [`learn/machine-readable-portfolio.md`](learn/machine-readable-portfolio.md) — making the site legible to AI tools: what JSON-LD and `llms.txt` actually are in plain terms, why identity and substance need different carriers, the `@id` trick that stops the Person being described three times, and an honest audit of what the structured data does *not* say.
 - [`learn/vercel-isr-quota.md`](learn/vercel-isr-quota.md) — **how a portfolio with under 10 visitors burned 75% of a 1,000,000-request quota.** What ISR and Request Caching actually are in plain English, how to read the Vercel dashboard (with screenshots), why an "ISR read" is an 8 KB block rather than a page view, the hidden duplicate copy of every inlined SVG, and the fix. Also: why bigger images are not sharper, and two confident wrong diagnoses.
 - [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md) — *(superseded, kept for its diagnostics)* the three-act thumbnail-blur saga: `<img>`-SVG blur on WebKit → the exact-size WebP raster experiment → why inline `<svg>` won on visual quality. Its engine/DPR blur matrix is still accurate and was re-confirmed during the replacement.
 - [`learn/inline-svg-thumbnails-explained.md`](learn/inline-svg-thumbnails-explained.md) — *(superseded)* junior-dev-level walkthrough of the thumbnail code: the server/client boundary and `fs`, `dangerouslySetInnerHTML`, `preserveAspectRatio`, `srcset`/`sizes`, and a gotchas checklist. Its "OLD" column — rasters behind a plain `<img>` — is close to what the site ships today.

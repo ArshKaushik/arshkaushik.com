@@ -3,8 +3,10 @@ import { Geist, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/layout/Sidebar";
 import ClarityAnalytics from "@/components/Clarity";
-import { identity, heroTagline } from "@/lib/content";
+import { identity, heroTagline, siteUrl } from "@/lib/content";
 import { Analytics } from "@vercel/analytics/next";
+import JsonLd from "@/components/JsonLd";
+import { siteGraph } from "@/lib/structured-data";
 
 const geist = Geist({
     variable: "--font-geist",
@@ -21,7 +23,7 @@ export const metadata: Metadata = {
     // Base for resolving every relative URL below (and the og:image URLs the
     // opengraph-image.tsx file convention generates) into absolute ones —
     // social crawlers reject relative URLs.
-    metadataBase: new URL("https://arshkaushik.com"),
+    metadataBase: new URL(siteUrl),
     title: `${identity.name} | ${identity.role}`,
     description: `${heroTagline}`,
     // Open Graph + Twitter cards: without these, a pasted link (LinkedIn DM,
@@ -109,6 +111,14 @@ export default function RootLayout({
                     projectId={process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID}
                 />
                 <Analytics />
+                {/* schema.org Person + WebSite, in one @graph. Renders nothing.
+                    Placed LAST in <body> deliberately: JSON-LD is valid anywhere
+                    in the document, and putting it here keeps it well away from
+                    the skip link above, which has to stay the first focusable
+                    element. Defined once here so every page carries exactly one
+                    Person, which case-study pages then reference by @id rather
+                    than duplicating (see lib/structured-data.ts). */}
+                <JsonLd data={siteGraph()} />
             </body>
         </html>
     );
