@@ -70,7 +70,7 @@ export default async function OpenGraphImage({
                             color: "#767676",
                         }}
                     >
-                        {study?.summary ?? "arshkaushik.com"}
+                        {study?.subtitle ?? "arshkaushik.com"}
                     </div>
                 </div>
             </div>

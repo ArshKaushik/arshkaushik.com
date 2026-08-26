@@ -37,7 +37,7 @@ export const dynamic = "force-static";
 // This is a markdown file, so inline markdown is left INTACT here — the
 // companyContext link renders correctly. Only the JSON-LD needs it flattened.
 function studyBlock(study: CaseStudy): string {
-    const lines = [`### ${study.title}`, study.deck, ""];
+    const lines = [`### ${study.title}`, study.subtitle, ""];
 
     // Role / Team / Timeline / Stack, verbatim from the study's own meta table.
     for (const row of study.meta) {

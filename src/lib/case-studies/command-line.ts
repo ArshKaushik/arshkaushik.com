@@ -1,12 +1,10 @@
 import type { CaseStudy } from "./types";
 import { companyContext } from "./shared";
 
-// Source: ~/Downloads/case-study-3-command-line-to-control-room.md
 export const commandLine: CaseStudy = {
     slug: "command-line",
     title: "Command line to control room",
-    deck: "Two CLI-bound workflows — agent versioning and agent health — rebuilt as one visual control room.",
-    summary:
+    subtitle:
         "Turned CLI-only agent management into one visual interface — upgrades, rollbacks, and health monitoring at a glance, with instant outage alerts. Human errors fell 80%.",
     thumbnail: "/thumbnails/commandLine.webp",
     meta: [

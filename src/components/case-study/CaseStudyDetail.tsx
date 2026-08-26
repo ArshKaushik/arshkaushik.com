@@ -61,7 +61,7 @@ export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
                     {study.title}
                 </h1>
                 <p className="text-[14px] leading-relaxed text-textSecondarySurface">
-                    {renderInline(study.summary)}
+                    {renderInline(study.subtitle)}
                 </p>
             </div>
 

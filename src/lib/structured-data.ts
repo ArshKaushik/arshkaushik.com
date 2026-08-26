@@ -167,7 +167,7 @@ export function caseStudySchema(study: CaseStudy) {
         name: plain(study.title),
         // `deck` — a one-sentence summary Arsh had already written that nothing
         // in the UI renders. Exactly the kind of line an AI will quote.
-        description: plain(study.deck),
+        description: plain(study.subtitle),
         url: `${siteUrl}/work/${study.slug}`,
         // thumbnail is optional on CaseStudy, so omit the property rather than
         // emit `undefined`.

@@ -36,17 +36,17 @@ export async function generateMetadata({
     const title = `${study.title} — ${identity.name}`;
     return {
         title,
-        description: study.summary,
+        description: study.subtitle,
         openGraph: {
             title,
-            description: study.summary,
+            description: study.subtitle,
             url: `/work/${study.slug}`,
             type: "article",
         },
         twitter: {
             card: "summary_large_image",
             title,
-            description: study.summary,
+            description: study.subtitle,
         },
     };
 }
