@@ -54,16 +54,8 @@ export const heroTagline =
 
 export const stats: { label: string; value: string; width?: string }[] = [
     { label: "Best lift", value: "Support tickets -50%" },
-    {
-        label: "Builds with",
-        value: "Figma + Next.js",
-        width: "min-[600px]:w-[192px]",
-    },
-    {
-        label: "Ownership",
-        value: "End-to-end",
-        width: "min-[600px]:w-[168px]",
-    },
+    { label: "Builds with", value: "Figma + Next.js", width: "min-[600px]:w-[192px]" },
+    { label: "Ownership", value: "End-to-end", width: "min-[600px]:w-[168px]" }
 ];
 
 export const footerText = "© 2026";
