@@ -22,9 +22,20 @@ import {
 // joins two existing strings because schema.org has no "years of experience"
 // property.
 
-// Stable @id anchors. Everything that needs to reference the Person points at
-// PERSON_ID instead of inlining the object, so a document that carries both the
-// site graph AND a case study describes ONE person, not three copies of one.
+// Stable @id anchors.
+//
+// Three schema.org keywords carry this whole file: @context names the
+// vocabulary being used (always schema.org here), @type states what a thing IS
+// (Person, WebSite, CreativeWork), and @id gives that thing a globally unique
+// URL so it can be POINTED AT from elsewhere instead of copied.
+//
+// @id is why these two constants exist. A case-study page carries two JSON-LD
+// blocks — the site graph from the root layout, and the CreativeWork from the
+// page itself — and both need to mention Arsh. Describing him twice would let
+// a crawler reasonably conclude there are two different people. So he is
+// described exactly once, at PERSON_ID, and everything else references that id
+// (personRef, just below). The URLs use a #fragment because an @id has to be
+// unique but doesn't have to resolve to a real page.
 export const PERSON_ID = `${siteUrl}/#person`;
 export const WEBSITE_ID = `${siteUrl}/#website`;
 
@@ -165,12 +176,22 @@ export function caseStudySchema(study: CaseStudy) {
         "@type": "CreativeWork",
         "@id": `${siteUrl}/work/${study.slug}#work`,
         name: plain(study.title),
-        // `deck` — a one-sentence summary Arsh had already written that nothing
-        // in the UI renders. Exactly the kind of line an AI will quote.
+        // The study's own subtitle — the same sentence the detail view shows
+        // under the title. `description` is the field a search engine or an AI
+        // quotes when it summarises this work, and each subtitle ends on its
+        // headline metric, which is the strongest thing to be quoted on.
         description: plain(study.subtitle),
         url: `${siteUrl}/work/${study.slug}`,
-        // thumbnail is optional on CaseStudy, so omit the property rather than
-        // emit `undefined`.
+        // The ...(cond ? { key: value } : {}) idiom, which appears several
+        // times in this file: spreading an empty object contributes nothing, so
+        // the property ends up either present with a real value or absent
+        // entirely. thumbnail is optional on CaseStudy, and emitting
+        // `image: undefined` would serialise as a malformed field, so omitting
+        // it is the correct schema rather than a shortcut.
+        //
+        // Worth knowing the flip side: when one of these conditions is wrongly
+        // false, the property silently vanishes and nothing errors. That's the
+        // failure mode called out on skillRow above.
         ...(study.thumbnail ? { image: `${siteUrl}${study.thumbnail}` } : {}),
         ...(row ? { keywords: splitSkills(row.value) } : {}),
         author: personRef,
