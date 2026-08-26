@@ -1,13 +1,25 @@
-// Font loading for the Open Graph images (opengraph-image.tsx files).
+// Downloads the site's two typefaces as raw font bytes, so the Open Graph
+// card generator can set its text in Instrument Serif and Geist instead of a
+// generic fallback.
 //
-// satori — the engine behind next/og's ImageResponse — can't use the fonts
-// next/font self-hosts for the page (those are woff2, which satori can't
-// parse). So the OG generators fetch TTFs from Google Fonts at BUILD time
-// (these routes are all prerendered): requesting the css2 endpoint WITHOUT a
-// modern browser User-Agent makes Google serve truetype URLs instead of
-// woff2. Everything is try/caught — if the network is unavailable at build,
-// the images just render in satori's default font instead of failing the
-// build.
+// WHY THIS IS NEEDED AT ALL: the cards are drawn by satori, the engine inside
+// next/og's ImageResponse. satori is not a browser — it can't reuse the fonts
+// next/font already serves to the real pages, because those are woff2 and
+// satori can't parse that format. It has to be handed TrueType (.ttf) bytes
+// directly, which is what this file goes and fetches.
+//
+// THE TRICK: Google Fonts' css2 endpoint chooses which format to serve based
+// on the caller's User-Agent. A plain server-side fetch sends no modern
+// browser User-Agent, so Google replies with truetype URLs instead of woff2 —
+// exactly the format satori wants. The regex below pulls that URL out of the
+// returned CSS, then a second fetch downloads the font file itself.
+//
+// WHEN: at BUILD time, because every route that calls this is prerendered.
+// So it costs no network request per visitor.
+//
+// IF IT FAILS: every step is try/caught and returns null, so a build with no
+// network access still succeeds — the cards just render in satori's own
+// bundled font rather than breaking the deploy.
 async function loadGoogleFont(family: string): Promise<ArrayBuffer | null> {
     try {
         const css = await fetch(

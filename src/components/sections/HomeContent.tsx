@@ -9,29 +9,52 @@ import Footer from "@/components/sections/Footer";
 //
 // WHY THE RAILS ARE ON AN ::after OVERLAY (not on main's own background):
 // The left/right rails must run continuously down the WHOLE column, including
-// over the white section boxes (tagline, cards). If we drew them as main's own
-// background (`dashed dash-x`), each child's white `bg-surface` would paint OVER
-// the rails and hide them — a child's background ALWAYS covers its parent's
-// background. So instead we paint the rails on an `::after` pseudo-element:
-//   • after:absolute after:inset-0  → one box the full size of the column
-//   • it's a positioned child, so it stacks ABOVE the normal-flow sections
-//     (and their white fills), keeping the rails visible everywhere
-//   • being ONE element, the dash pattern stays continuous top-to-bottom
-//   • after:content-[''] is required for a pseudo-element to render at all
-//   • after:pointer-events-none so the overlay never blocks clicks on the links
-//   • after:dashed after:dash-x = left + right edges, the same combo used
-//     elsewhere on the site (Hero, cards, Sidebar).
-// (main is `relative` so the absolute overlay is positioned against it.)
+// across the white section boxes (tagline, cards).
 //
-// [overflow-clip-margin:2px] alongside overflow-clip: at non-100% browser
-// zoom (e.g. 33%), the right rail's position (`right`, derived from main's
-// own rendered width) can round to land a hair outside main's box — and
-// with a bare `overflow-clip`, "a hair outside" gets fully clipped away,
-// making that rail disappear. An earlier version fixed this by insetting
-// the rail 1px inward instead, but that permanently left a visible 1px gap
-// of white `bg-surface` beyond the rail at every zoom level. clip-margin
-// gives the clip box slack to tolerate that rounding without ever shifting
-// the rail off its true, flush edge.
+// Drawing them as main's own background (`dashed dash-x`) can't work, because
+// of PAINTING ORDER: the browser paints a parent's background first, then
+// paints its children on top. So each section's white `bg-surface` would land
+// over the rails and hide them. A child's background always wins against its
+// parent's.
+//
+// The fix is to paint the rails on an ::after PSEUDO-ELEMENT — an extra box
+// CSS generates inside the element, styleable like a real one but absent from
+// the HTML:
+//   • after:absolute after:inset-0  → one box pinned to all four edges, so it
+//     matches the column's full size
+//   • being POSITIONED (anything with a `position` other than static) puts it
+//     in a later paint layer than the in-flow sections, so it lands ABOVE
+//     their white fills and the rails stay visible everywhere
+//   • being ONE element, the dash pattern stays continuous top-to-bottom
+//     instead of restarting at each section
+//   • after:content-[''] is mandatory — a pseudo-element with no `content`
+//     is never generated at all, even with every other style set
+//   • after:pointer-events-none makes the overlay transparent to the mouse,
+//     so this full-size box can't swallow clicks meant for the links beneath
+//   • after:dashed after:dash-x = left + right edges, the same combo used
+//     elsewhere on the site (Hero, cards, Sidebar)
+// (main is `relative` so the absolutely-positioned overlay measures itself
+// against main rather than against the page.)
+//
+// [overflow-clip-margin:2px] alongside overflow-clip.
+//
+// overflow-clip hides anything painted outside the element's box — like
+// overflow-hidden, except it does NOT turn the element into a scroll
+// container, so nothing here can ever be scrolled or programmatically
+// scrolled out of view.
+//
+// The bug it caused: at non-100% browser zoom (e.g. 33%), the right rail's
+// position is derived from main's own rendered width, and that arithmetic can
+// round to a fraction of a pixel OUTSIDE main's box. A bare overflow-clip
+// treats "a hair outside" as outside and clips the whole rail away, so the
+// right rail vanished at some zoom levels.
+//
+// overflow-clip-margin is the escape valve: it pushes the clip boundary
+// outward by the given amount (2px here), so sub-pixel rounding stays inside
+// the clip region. An earlier fix instead inset the rail 1px inward, which
+// worked but permanently left a visible 1px strip of white `bg-surface`
+// beyond the rail at every zoom level. clip-margin tolerates the rounding
+// without ever moving the rail off its true, flush edge.
 //
 // pt-10: Figma frame 530:77557 has the hero sitting at y=40, matching the
 // same pt-10=40px already used at wider tiers — so this is a single flat

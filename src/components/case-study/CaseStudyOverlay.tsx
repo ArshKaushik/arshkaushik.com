@@ -58,12 +58,23 @@ export default function CaseStudyOverlay({
     const backdropPressRef = useRef(false);
 
     // Move focus INTO the dialog on open (standard modal behavior). This also
-    // pulls focus OFF the card the user clicked. That matters for closing: the
-    // card <a> stays in the DOM behind us, so if it kept focus, pressing Esc (a
-    // keyboard action) would flip the browser into "keyboard mode" and paint a
-    // :focus-visible ring on the card the instant we unmount. With focus parked
-    // on this dialog instead, closing just drops focus to <body> — no stray ring.
-    // (The dialog is tabIndex=-1 + outline-none so focusing it shows nothing.)
+    // pulls focus OFF the card the user clicked, which is what matters when
+    // CLOSING.
+    //
+    // The mechanism: the card's <a> stays in the DOM behind us. Browsers track
+    // a FOCUS MODALITY — in effect "was the last interaction a key or a
+    // pointer?" — and :focus-visible is the pseudo-class that matches only
+    // when that modality says a focus ring is warranted. Esc is a keyboard
+    // action, so pressing it flips the modality to keyboard; if the card still
+    // held focus at that moment, it would paint a :focus-visible ring the
+    // instant we unmount. Parking focus on this dialog instead means closing
+    // drops focus to <body>, and no stray ring appears.
+    //
+    // tabIndex={-1} is what makes this div focusable at all: it permits a
+    // programmatic .focus() while keeping the element out of the Tab order.
+    // outline-none means landing on it shows nothing. preventScroll stops the
+    // browser from auto-scrolling a newly focused element into view, which
+    // would otherwise jump the card the moment it opens.
     useEffect(() => {
         dialogRef.current?.focus({ preventScroll: true });
     }, []);
@@ -101,11 +112,17 @@ export default function CaseStudyOverlay({
         return () => flipped.forEach((el) => (el.inert = false));
     }, []);
 
-    // Enter animation. Double-rAF, not single: the first rAF can fire in the
-    // same frame as the initial commit (before the browser has painted the
-    // closed state), in which case the transition would have nothing to
-    // animate FROM and the card would just appear. The nested rAF guarantees
-    // at least one painted frame of the closed state first.
+    // Enter animation: mount in the closed state, then flip `open` to true so
+    // the CSS transition has two states to travel between.
+    //
+    // requestAnimationFrame (rAF) queues a callback to run just before the
+    // browser's next paint. It's nested here — double-rAF, not single —
+    // because a single one can still land in the same frame as React's initial
+    // COMMIT, the point where the DOM has been updated but nothing has been
+    // painted yet. Flipping `open` in that frame means the closed state is
+    // never rendered, so the transition has no FROM value to start from and
+    // the card just appears. The inner rAF pushes the flip out one more frame,
+    // guaranteeing the closed state gets painted first.
     useEffect(() => {
         let raf2: number | undefined;
         const raf1 = requestAnimationFrame(() => {
@@ -117,13 +134,21 @@ export default function CaseStudyOverlay({
         };
     }, []);
 
-    // Lock background scroll while the overlay is mounted. Hiding the page
-    // scrollbar widens the viewport by the scrollbar's width on platforms
-    // with classic (non-overlay) scrollbars — Windows, mostly — which shifts
-    // the whole layout sideways on open and back on close. Padding the body
-    // by that exact width keeps in-flow content (the column, the >=900px
-    // sticky sidebar) where it was. Overlay-scrollbar platforms (macOS
-    // default) measure 0 and are untouched.
+    // Lock background scroll while the overlay is mounted.
+    //
+    // overflow:hidden on <body> is what stops the page behind from scrolling.
+    // The complication is the scrollbar. On platforms with CLASSIC scrollbars
+    // — ones that occupy real layout space, Windows mostly — hiding it hands
+    // that space back to the page, so the viewport gets wider and the whole
+    // layout shifts sideways on open and snaps back on close.
+    //
+    // window.innerWidth - documentElement.clientWidth measures exactly that
+    // width: innerWidth counts the scrollbar, clientWidth doesn't, so the
+    // difference is whatever the scrollbar was occupying. Padding <body> by it
+    // keeps in-flow content (the column, the >=900px sticky sidebar) exactly
+    // where it was. On OVERLAY-scrollbar platforms (macOS by default) the
+    // scrollbar floats above content and takes no layout space, so this
+    // measures 0 and nothing is padded.
     useEffect(() => {
         const prevOverflow = document.body.style.overflow;
         const prevPaddingRight = document.body.style.paddingRight;
@@ -178,17 +203,22 @@ export default function CaseStudyOverlay({
             tabIndex={-1}
             // Backdrop-close, but only when the PRESS also started on the
             // backdrop. A bare onClick={close} here had two real failure
-            // modes, both because `click` fires on the nearest common
-            // ancestor of mousedown/mouseup:
+            // modes, both traceable to one DOM rule: a `click` event is
+            // dispatched on the nearest common ANCESTOR of where mousedown and
+            // mouseup happened. So a drag that begins inside the card and ends
+            // outside it reports its click on this dialog, not on the card.
             //   • selecting text in the card and releasing past its edge
-            //     fired a click on this dialog → the overlay slammed shut
+            //     therefore fired a click here → the overlay slammed shut
             //     mid-read;
-            //   • on classic-scrollbar platforms, interacting with THIS
-            //     element's own scrollbar could do the same.
-            // onPointerDown records where the press began — inside the card
-            // (via cardRef) or on the scrollbar strip (offsetX past
-            // clientWidth) means "not a backdrop press" — and onClick only
-            // closes when the press qualified.
+            //   • on classic-scrollbar platforms, dragging THIS element's own
+            //     scrollbar could do the same.
+            // onPointerDown records where the press BEGAN, and disqualifies
+            // two cases: inside the card (cardRef.contains), or on the
+            // scrollbar strip — offsetX is the pointer's x within this
+            // element, clientWidth excludes the scrollbar, so an offsetX at or
+            // past clientWidth means the press landed ON the scrollbar.
+            // onClick then only closes when the press qualified as a genuine
+            // backdrop press.
             onPointerDown={(e) => {
                 const onScrollbar =
                     e.target === e.currentTarget &&
@@ -204,20 +234,24 @@ export default function CaseStudyOverlay({
                 open ? "opacity-100" : "opacity-0"
             }`}
         >
-            {/* w-full + flex justify-center: the dialog above is flex-col +
-                items-center, so THIS div's width is a cross-axis size —
-                items-center doesn't stretch it, so without an explicit width it
-                shrink-to-fits CaseStudyDetail's 800px preferred size instead of
-                the dialog's real available width (that's what an overflow-auto
-                ancestor does by design — let content overflow/scroll rather
-                than force-shrink it). Never an issue until this <900px
-                full-bleed treatment, since 800px always fit before 900px.
-                w-full forces this div to take the dialog's actual width, so
-                CaseStudyDetail's own max-w-full has a real container to shrink
-                against — but that also means dialog's items-center no longer
-                centers anything (this div already fills 100%), so this div
-                needs its OWN centering for its child, same as the standalone
-                page's wrapper (work/[slug]/page.tsx).
+            {/* w-full + flex justify-center. The dialog above is flex-col +
+                items-center, which makes THIS div's width a CROSS-AXIS size —
+                the cross axis being the one perpendicular to the direction
+                items are stacked in (here: horizontal, since the stack runs
+                vertically). items-center centers along that axis but does not
+                stretch, so with no explicit width this div would shrink-to-fit
+                CaseStudyDetail's 800px preferred width rather than take the
+                dialog's real available width. The overflow-auto ancestor makes
+                that worse by design: a scroll container lets content overflow
+                and scroll rather than force-shrinking it. Never an issue until
+                this <900px full-bleed treatment, since 800px always fit below
+                900px.
+                w-full forces this div to the dialog's actual width, which
+                gives CaseStudyDetail's own max-w-full a real container to
+                shrink against. The consequence: the dialog's items-center now
+                centers nothing (this div already fills 100%), so this div
+                needs its OWN justify-center for its child — same arrangement
+                as the standalone page's wrapper (work/[slug]/page.tsx).
 
                 NO onClick here (a past version had stopPropagation on this
                 div, a real bug): this div is w-full, spanning the ENTIRE
