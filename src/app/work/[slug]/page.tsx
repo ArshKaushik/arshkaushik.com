@@ -15,8 +15,6 @@ import { caseStudySchema } from "@/lib/structured-data";
 // home-less page — see CaseStudyOverlay.tsx's file-level comment for the
 // closeHref mechanism.
 
-// Pre-render all three /work/<slug> pages at build time (SSG). Returning the
-// known slugs lets Next generate static HTML instead of rendering on request.
 export function generateStaticParams() {
     return caseStudies.map((study) => ({ slug: study.slug }));
 }

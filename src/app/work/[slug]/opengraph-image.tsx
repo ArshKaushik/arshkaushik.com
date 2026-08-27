@@ -3,22 +3,6 @@ import { caseStudies } from "@/lib/case-studies";
 import { identity } from "@/lib/content";
 import { loadOgFonts, ogFontOptions } from "@/lib/og-fonts";
 
-// The og:image for a shared /work/<slug> link — the preview card that unfurls
-// in LinkedIn, Slack or iMessage. One per case study, titled with that study.
-//
-// The wiring is the FILENAME, not a metadata field: `opengraph-image` is one
-// of Next's reserved file conventions, so Next makes this the og:image for the
-// sibling page.tsx route and emits the <meta property="og:image"> tag itself.
-// Nothing imports this file — renaming it silently removes the preview.
-//
-// generateStaticParams mirrors the page's, so all three cards are rendered
-// once at build time (prerendered) rather than on each request.
-//
-// The card is drawn by satori, the engine inside next/og's ImageResponse.
-// satori supports `border: dashed` but not the custom 10/10 dash rhythm used
-// across the site, so the border below is its standard approximation rather
-// than a match for the real thing.
-
 export const alt = `Case study — ${identity.name}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";

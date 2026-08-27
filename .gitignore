@@ -48,3 +48,8 @@ next-env.d.ts
 /.claude/
 /.agents/
 /skills-lock.json
+
+# editor settings (machine-specific). The project-wide formatting rules that
+# actually matter — LF, spaces, indent 4 — live in .editorconfig instead, which
+# every editor can read rather than just this one.
+/.vscode/

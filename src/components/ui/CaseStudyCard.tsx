@@ -16,17 +16,6 @@ export default function CaseStudyCard({
     return (
         <Link
             href={`/work/${slug}`}
-            // focus-visible:relative focus-visible:z-10 — keyboard focus ring fix.
-            // The ring is the browser's default outline, and an outline paints
-            // OUTSIDE the border box, in pixels that belong to whatever sits next
-            // to the card. The cards are flush siblings (no gap on the section)
-            // with an opaque bg-surface, and a later sibling paints over an earlier
-            // one — so the next card was covering the bottom of this one's ring,
-            // leaving a three-sided box. Only the last card, which has the
-            // footer's gap-6 beneath it, showed all four sides.
-            // Raising the focused card into its own stacking layer puts its
-            // outline above the neighbours instead of under them. Scoped to
-            // focus-visible so nothing changes at rest or on mouse click.
             className={`group flex h-auto w-full flex-col items-start gap-6 dashed dash-b bg-surface p-6 transition-opacity focus-visible:relative focus-visible:z-10 active:opacity-70 min-[600px]:h-[441px] ${
                 isFirst ? "dash-t" : ""
             }`}
