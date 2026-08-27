@@ -51,7 +51,17 @@ export default function MobileNavPill({
                 {/* Chevron rotates 180deg in place on toggle — Figma's raw export
                     shows the icon's x/y shifting between states, but that's a
                     known artifact of how rotated bounding boxes get reported,
-                    not a real instruction to relocate it. */}
+                    not a real instruction to relocate it.
+
+                    The three aria-* attributes are what make a screen reader
+                    announce this as a working disclosure control rather than
+                    an unlabelled button: aria-expanded reports open/closed
+                    state, aria-controls names the element being toggled (via
+                    useId, since two pills on one page would otherwise collide
+                    on a hardcoded id), and aria-label supplies the accessible
+                    name, because the visible content is an <svg> with no text.
+                    The svg itself is aria-hidden — the button already carries
+                    the name, so exposing the graphic too would just repeat it. */}
                 <button
                     type="button"
                     aria-expanded={expanded}
@@ -78,8 +88,21 @@ export default function MobileNavPill({
                 </button>
             </div>
 
-            {/* grid-template-rows 0fr<->1fr: the standard CSS-only way to animate
-                to/from intrinsic "auto" height with no JS measurement.
+            {/* grid-template-rows 0fr<->1fr: the standard CSS-only way to
+                animate to and from an intrinsic "auto" height without
+                measuring anything in JS.
+
+                Why the indirection: `height: auto` is not an animatable
+                value — the browser has no start and end number to tween
+                between, so a transition to auto simply snaps. A grid TRACK
+                can do what height can't. `fr` is the grid unit meaning "a
+                fraction of the leftover space", so 1fr lets the single row
+                take exactly its content's height, while 0fr collapses that
+                same row to zero. Both are real numbers, so the browser can
+                interpolate between them — and the child keeps its natural
+                height throughout, which is why nothing has to be measured.
+                overflow-hidden on the <nav> is what hides the content while
+                the track is shorter than it.
 
                 The 20px gap between the header row and the links is a
                 conditional gap-0/gap-5 on <aside> above (animated alongside

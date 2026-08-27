@@ -1,12 +1,10 @@
 import type { CaseStudy } from "./types";
 import { companyContext } from "./shared";
 
-// Source: ~/Downloads/case-study-1-design-system.md
 export const designSystem: CaseStudy = {
     slug: "design-system",
     title: "The design system that skipped Figma",
-    deck: "A code-first design system, built and shipped with agentic AI — no Figma-to-code handoff, governed by a custom MCP that keeps every team on-spec.",
-    summary:
+    subtitle:
         "A code-first design system built with agentic AI — no handoffs, governed by a custom MCP that keeps every team in sync. Design-to-ship time dropped 30%.",
     thumbnail: "/thumbnails/designSystem.webp",
     meta: [

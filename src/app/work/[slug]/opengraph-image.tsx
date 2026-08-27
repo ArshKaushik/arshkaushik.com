@@ -3,11 +3,6 @@ import { caseStudies } from "@/lib/case-studies";
 import { identity } from "@/lib/content";
 import { loadOgFonts, ogFontOptions } from "@/lib/og-fonts";
 
-// Per-case-study og:image — same surface-card design as the root
-// opengraph-image.tsx (see its comment for how the file convention works),
-// but titled with the study instead of the hero tagline. generateStaticParams
-// mirrors the page's, so all three render at build time.
-
 export const alt = `Case study — ${identity.name}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -70,7 +65,7 @@ export default async function OpenGraphImage({
                             color: "#767676",
                         }}
                     >
-                        {study?.summary ?? "arshkaushik.com"}
+                        {study?.subtitle ?? "arshkaushik.com"}
                     </div>
                 </div>
             </div>

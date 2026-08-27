@@ -1,12 +1,10 @@
 import type { CaseStudy } from "./types";
 import { companyContext } from "./shared";
 
-// Source: ~/Downloads/case-study-2-connector-config.md
 export const connectorConfig: CaseStudy = {
     slug: "connector-config",
     title: "Connector configuration without hand-holding",
-    deck: "The first user research ever run on the connector-configuration flow — distilled into three features that let users set up a data source on their own.",
-    summary:
+    subtitle:
         "Research-led redesign of a five-step data-configuration flow — replacing jargon and dead ends with a path data stewards could follow alone. Support tickets fell 50%.",
     thumbnail: "/thumbnails/connectorConfig.webp",
     meta: [

@@ -19,10 +19,17 @@ const renderInline = (s: string): React.ReactNode => {
     const stripEmphasis = (t: string) =>
         t.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1");
 
-    // Matches [visible text](url) — the standard markdown link form.
+    // Matches [visible text](url) — the standard markdown link form. The two
+    // parenthesised groups are the capture groups, pulled out as `text` and
+    // `url` below. The /g flag is load-bearing: .exec() on a GLOBAL regex is
+    // stateful, resuming each call from the regex object's own lastIndex, and
+    // that is what lets the loop below walk every link in one pass rather than
+    // matching the first one forever.
     const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
     const nodes: React.ReactNode[] = [];
-    let cursor = 0; // index of the first char we haven't emitted yet
+    // Index of the first character not yet pushed into `nodes`. Whatever sits
+    // between `cursor` and the next match is plain text.
+    let cursor = 0;
     let key = 0;
     let match: RegExpExecArray | null;
 
@@ -61,7 +68,7 @@ export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
                     {study.title}
                 </h1>
                 <p className="text-[14px] leading-relaxed text-textSecondarySurface">
-                    {renderInline(study.summary)}
+                    {renderInline(study.subtitle)}
                 </p>
             </div>
 
@@ -95,6 +102,12 @@ export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
             </div>
 
             {/* Metadata table — dashed box, dashed divider between rows.
+                Built as a <dl> DESCRIPTION LIST rather than divs: <dt> is the
+                term (Role, Team, Timeline) and <dd> its description, which is
+                the semantically correct pairing for label/value data. Screen
+                readers announce it as a list of pairs, so the value is heard
+                as belonging to its label instead of as two unrelated runs of
+                text.
                 Below 600px (not the Figma design's nominal 480px handoff —
                 see snap-center-x's comment in globals.css for why 600 is the
                 real floor) each row stacks label-above-value (Figma

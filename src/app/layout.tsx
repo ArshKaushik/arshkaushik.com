@@ -20,18 +20,9 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-    // Base for resolving every relative URL below (and the og:image URLs the
-    // opengraph-image.tsx file convention generates) into absolute ones —
-    // social crawlers reject relative URLs.
     metadataBase: new URL(siteUrl),
     title: `${identity.name} | ${identity.role}`,
     description: `${heroTagline}`,
-    // Open Graph + Twitter cards: without these, a pasted link (LinkedIn DM,
-    // job application, Slack) unfurls as a bare URL with no preview — the
-    // worst possible first impression for a portfolio distributed via links.
-    // The image itself comes from src/app/opengraph-image.tsx (and the
-    // per-study variant under work/[slug]/) — Next injects those og:image
-    // tags automatically, so no `images` field is needed here.
     openGraph: {
         type: "website",
         siteName: identity.name,
@@ -44,17 +35,12 @@ export const metadata: Metadata = {
         title: `${identity.name} | ${identity.role}`,
         description: heroTagline,
     },
-    // Theme-aware favicon. Next renders these as <link rel="icon"> tags.
-    // The browser only exposes a coarse light/dark preference
-    // (prefers-color-scheme), which we map to the two icons:
+
+    // Theme-aware favicon
     icons: {
         icon: [
-            // Default = the light-mode icon. Also the fallback for browsers that
-            // report no colour preference or don't honour `media` on icons.
-            { url: "/favicon-light.png", type: "image/png", sizes: "96x96" },
-            // Dark mode overrides it: this link both matches AND comes last, so
-            // the browser picks it when prefers-color-scheme is dark.
-            {
+            { url: "/favicon-light.png", type: "image/png", sizes: "96x96" }, // Default - light
+            {   // Dark mode - overrides default when browser's prefers-color-scheme is dark.
                 url: "/favicon-dark.png",
                 media: "(prefers-color-scheme: dark)",
                 type: "image/png",

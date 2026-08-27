@@ -1,19 +1,18 @@
 @import "tailwindcss";
 
 @theme {
-  --color-page: #f4f4f4;
-  --color-surface: #ffffff;
-  --color-textPrimary: #000000;
-  --color-textSecondaryPage: #6f6f6f;
-  --color-textSecondarySurface: #767676;
-  --color-stroke: #d8d8d8;
-  --color-overlay: #111111; /* case-study overlay backdrop — used at /12 opacity */
+    --color-page: #f4f4f4;
+    --color-surface: #ffffff;
+    --color-textPrimary: #000000;
+    --color-textSecondaryPage: #6f6f6f;
+    --color-textSecondarySurface: #767676;
+    --color-stroke: #d8d8d8;
+    --color-overlay: #111111; /* case-study overlay backdrop — used at /12 opacity */
 
-  /* Font family variables are injected by next/font in layout.tsx */
-  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
-  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
+    --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+    --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
 
-  /* ---------------------------------------------------------------------------
+    /* ---------------------------------------------------------------------------
      Spring easing for the case-study card hover (Figma "Gentle" preset)
      ---------------------------------------------------------------------------
      WHAT THIS IS
@@ -39,14 +38,59 @@
      So this one line gives us the class `ease-spring-gentle` to use in JSX.
      (Browser support: Chrome 113+, Safari 17.4+, Firefox 112+.)
      ------------------------------------------------------------------------- */
-  --ease-spring-gentle: linear(
-    0, 0.0188, 0.0679, 0.1374, 0.2195, 0.308, 0.3978, 0.4856, 0.5686, 0.6452,
-    0.7142, 0.7753, 0.8283, 0.8735, 0.9113, 0.9423, 0.9671, 0.9866, 1.0014,
-    1.0123, 1.0198, 1.0247, 1.0274, 1.0283, 1.0281, 1.0268, 1.025, 1.0227,
-    1.0202, 1.0177, 1.0152, 1.0128, 1.0106, 1.0085, 1.0068, 1.0052, 1.0039,
-    1.0028, 1.0018, 1.0011, 1.0005, 1, 0.9997, 0.9995, 0.9993, 0.9992, 0.9992,
-    0.9992, 0.9992, 0.9993, 0.9993
-  );
+    --ease-spring-gentle: linear(
+        0,
+        0.0188,
+        0.0679,
+        0.1374,
+        0.2195,
+        0.308,
+        0.3978,
+        0.4856,
+        0.5686,
+        0.6452,
+        0.7142,
+        0.7753,
+        0.8283,
+        0.8735,
+        0.9113,
+        0.9423,
+        0.9671,
+        0.9866,
+        1.0014,
+        1.0123,
+        1.0198,
+        1.0247,
+        1.0274,
+        1.0283,
+        1.0281,
+        1.0268,
+        1.025,
+        1.0227,
+        1.0202,
+        1.0177,
+        1.0152,
+        1.0128,
+        1.0106,
+        1.0085,
+        1.0068,
+        1.0052,
+        1.0039,
+        1.0028,
+        1.0018,
+        1.0011,
+        1.0005,
+        1,
+        0.9997,
+        0.9995,
+        0.9993,
+        0.9992,
+        0.9992,
+        0.9992,
+        0.9992,
+        0.9993,
+        0.9993
+    );
 }
 
 /* ===========================================================================
@@ -80,19 +124,34 @@
    to the element that actually sets it, so `var(--dash-*, none)` correctly falls
    back to `none` on everyone else. (--dash-h / --dash-v below stay inheriting —
    they're the shared tile definitions, meant to be read everywhere.) */
-@property --dash-t { syntax: "*"; inherits: false; }
-@property --dash-b { syntax: "*"; inherits: false; }
-@property --dash-l { syntax: "*"; inherits: false; }
-@property --dash-r { syntax: "*"; inherits: false; }
+@property --dash-t {
+    syntax: "*";
+    inherits: false;
+}
+@property --dash-b {
+    syntax: "*";
+    inherits: false;
+}
+@property --dash-l {
+    syntax: "*";
+    inherits: false;
+}
+@property --dash-r {
+    syntax: "*";
+    inherits: false;
+}
 
 :root {
-  /* One dash TILE. `--dash-h` is a horizontal tile (used on the TOP/BOTTOM
-     edges); `--dash-v` is a vertical tile (LEFT/RIGHT edges). Each is a hard
-     50/50 gradient — half stroke, half transparent — which becomes a 10px dash +
-     10px gap once sized to a 20px tile below. `var(--color-stroke)` reuses the
-     same #d8d8d8 token as everything else. */
-  --dash-h: linear-gradient(to right, var(--color-stroke) 50%, transparent 50%);
-  --dash-v: linear-gradient(to bottom, var(--color-stroke) 50%, transparent 50%);
+    --dash-h: linear-gradient(
+        to right,
+        var(--color-stroke) 50%,
+        transparent 50%
+    );
+    --dash-v: linear-gradient(
+        to bottom,
+        var(--color-stroke) 50%,
+        transparent 50%
+    );
 }
 
 /* The base utility: add `dashed` to switch the effect ON, then add edge markers
@@ -111,22 +170,38 @@
    Note: this is a background, so it coexists with `bg-surface`/`bg-page` (which
    set background-COLOR) — the dashes paint on top, gaps reveal the color behind. */
 @utility dashed {
-  background-image: var(--dash-t, none), var(--dash-b, none), var(--dash-l, none), var(--dash-r, none);
-  background-position: top, bottom, left, right;
-  background-size: 20px 1px, 20px 1px, 1px 20px, 1px 20px;
-  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+    background-image:
+        var(--dash-t, none), var(--dash-b, none), var(--dash-l, none),
+        var(--dash-r, none);
+    background-position: top, bottom, left, right;
+    background-size:
+        20px 1px,
+        20px 1px,
+        1px 20px,
+        1px 20px;
+    background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
 }
 
-/* Edge markers. Each just sets its edge's variable, so they STACK: writing
-   `dashed dash-t dash-b` lights up top AND bottom. `dash-x` / `dash-y` are
-   shortcuts for both vertical / both horizontal edges (mirrors Tailwind's
-   `border-x` / `border-y`). */
-@utility dash-t { --dash-t: var(--dash-h); } /* top    */
-@utility dash-b { --dash-b: var(--dash-h); } /* bottom */
-@utility dash-l { --dash-l: var(--dash-v); } /* left   */
-@utility dash-r { --dash-r: var(--dash-v); } /* right  */
-@utility dash-x { --dash-l: var(--dash-v); --dash-r: var(--dash-v); } /* left + right */
-@utility dash-y { --dash-t: var(--dash-h); --dash-b: var(--dash-h); } /* top + bottom */
+@utility dash-t {
+    --dash-t: var(--dash-h);
+} /* top */
+@utility dash-b {
+    --dash-b: var(--dash-h);
+} /* bottom */
+@utility dash-l {
+    --dash-l: var(--dash-v);
+} /* left */
+@utility dash-r {
+    --dash-r: var(--dash-v);
+} /* right */
+@utility dash-x {
+    --dash-l: var(--dash-v);
+    --dash-r: var(--dash-v);
+} /* left + right */
+@utility dash-y {
+    --dash-t: var(--dash-h);
+    --dash-b: var(--dash-h);
+} /* top + bottom */
 
 /* ---------------------------------------------------------------------------
    Responsive gutter + pixel-snapped centering for the 600px content column
@@ -152,11 +227,11 @@
    per Figma frame 475:53735 — verified: content-box = 680 - 0 = 680,
    margin = (680-600)/2 = 40, matching exactly). */
 @utility snap-gutter-r {
-  padding-right: 0px;
+    padding-right: 0px;
 
-  @media (min-width: 900px) {
-    padding-right: clamp(40px, calc(100vw - 860px), 260px);
-  }
+    @media (min-width: 900px) {
+        padding-right: clamp(40px, calc(100vw - 860px), 260px);
+    }
 }
 
 /* The column is centered in the space beside the sidebar. A normal centered
@@ -192,13 +267,13 @@
    uses 600px too, for the same reason and to keep one consistent handoff
    point rather than a different floor per element. */
 @utility snap-center-x {
-  width: calc(100% - 32px);
-  margin-left: 16px;
+    width: calc(100% - 32px);
+    margin-left: 16px;
 
-  @media (min-width: 600px) {
-    width: 600px;
-    margin-left: max(0px, round(calc((100% - 600px) / 2), 1px));
-  }
+    @media (min-width: 600px) {
+        width: 600px;
+        margin-left: max(0px, round(calc((100% - 600px) / 2), 1px));
+    }
 }
 
 /* ---------------------------------------------------------------------------
@@ -238,26 +313,30 @@
    design — matches the ask ("slides in from the bottom"); these components
    already snap instantly on exit today, unchanged. */
 @keyframes slide-bottom-pill-in {
-  from { transform: translateY(150%); }
-  to { transform: translateY(0); }
+    from {
+        transform: translateY(150%);
+    }
+    to {
+        transform: translateY(0);
+    }
 }
 
 @utility slide-in-tablet-pill {
-  @media (min-width: 600px) and (max-width: 899px) {
-    animation: slide-bottom-pill-in 520ms var(--ease-spring-gentle) both;
+    @media (min-width: 600px) and (max-width: 899px) {
+        animation: slide-bottom-pill-in 520ms var(--ease-spring-gentle) both;
 
-    @media (prefers-reduced-motion: reduce) {
-      animation: none;
+        @media (prefers-reduced-motion: reduce) {
+            animation: none;
+        }
     }
-  }
 }
 
 @utility slide-in-mobile-pill {
-  @media (max-width: 599px) {
-    animation: slide-bottom-pill-in 520ms var(--ease-spring-gentle) both;
+    @media (max-width: 599px) {
+        animation: slide-bottom-pill-in 520ms var(--ease-spring-gentle) both;
 
-    @media (prefers-reduced-motion: reduce) {
-      animation: none;
+        @media (prefers-reduced-motion: reduce) {
+            animation: none;
+        }
     }
-  }
 }

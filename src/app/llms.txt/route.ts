@@ -12,8 +12,11 @@ import {
     yearsOfExperience,
 } from "@/lib/content";
 
-// /llms.txt — a Route Handler, because Next has no file convention for this the
-// way it does for sitemap.ts and robots.ts.
+// /llms.txt — a ROUTE HANDLER: a file that exports functions named after HTTP
+// verbs (just GET here) and returns a Response directly, rather than returning
+// JSX for Next to render. Written this way because Next has no reserved file
+// convention for llms.txt the way it does for sitemap.ts and robots.ts, so the
+// URL has to be served by hand.
 //
 // What it is: the same idea as robots.txt, but where robots.txt says "what you
 // may crawl", this says "here is what this site is about" — clean markdown, no
@@ -27,17 +30,24 @@ import {
 // complete brief. Full reasoning: learn/machine-readable-portfolio.md.
 //
 // Every line is assembled from the same content modules the pages render from —
-// no second copy of anything to drift out of sync. Notably it's where each
-// study's `deck` sentence finally gets used; nothing in the UI renders it.
+// there is no second copy of anything to drift out of sync, so a reworded stat
+// or a newly added case study reaches this file with no extra step.
 
-// force-static: prerender at build time so this costs no function invocation per
-// request, and one small ISR read rather than compute.
+// force-static: build this response once at build time instead of running GET()
+// on every request. A Route Handler is dynamic by default, meaning each hit
+// would wake a serverless function; prerendered, each hit is instead served
+// from Vercel's ISR cache (Incremental Static Regeneration — the layer that
+// stores prerendered output and serves it without invoking any compute). One
+// small cache read, no function invocation, no per-visit cost.
 export const dynamic = "force-static";
 
-// This is a markdown file, so inline markdown is left INTACT here — the
-// companyContext link renders correctly. Only the JSON-LD needs it flattened.
+// Inline markdown is left INTACT here, unlike in structured-data.ts where
+// everything goes through plain(). The difference is the consumer: this
+// response is markdown, so companyContext's `[Precisely](url)` renders as a
+// real link for whoever reads it. JSON-LD has no notion of markdown, so the
+// same string there would ship literal brackets and asterisks.
 function studyBlock(study: CaseStudy): string {
-    const lines = [`### ${study.title}`, study.deck, ""];
+    const lines = [`### ${study.title}`, study.subtitle, ""];
 
     // Role / Team / Timeline / Stack, verbatim from the study's own meta table.
     for (const row of study.meta) {
