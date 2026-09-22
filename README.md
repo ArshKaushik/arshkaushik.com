@@ -26,6 +26,12 @@ pnpm start      # serve the production build
 pnpm lint       # ESLint
 ```
 
+### Superset workspaces
+
+`.superset/config.json` automates onboarding for [Superset](https://superset.sh)
+worktrees: a new workspace runs `pnpm install` and copies `.env.local` from the
+main checkout automatically, and its Run button launches `pnpm dev`.
+
 ### Regenerating an image asset
 
 Every image here is a Figma export, committed as a file — there's no build step and
