@@ -62,6 +62,8 @@ export interface ParticleScrollOptions {
     settle?: number;
     /** Seconds the damped scroll takes to catch up with the real scroll. Higher feels more fluid. */
     smoothing?: number;
+    /** Seconds the dust edge takes to rise from the bottom of the screen to the formation line when the overlay opens (eased out). 0 = no rise: the whole lower area dissolves at once. */
+    rise?: number;
 }
 
 export interface ParticleScrollElements {
@@ -106,6 +108,7 @@ const DEFAULTS: Required<ParticleScrollOptions> = {
     fade: 0.85, // Opacity of fully scattered grains, 0 to 1. 1 = solid; lower = fainter dust.
     settle: 1.2, // Seconds a row takes to form once it's above the line. Lower = snappier; higher = slower, dreamier.
     smoothing: 0.6, // Seconds the effect trails your actual scroll. 0 = follows instantly; higher = floatier, more lag.
+    rise: 0.52, // Not upstream: seconds the dust edge takes to rise from the screen's bottom to the line on open (ease-out). 0.52 = the site's shared motion pace; 0 = no rise (whole area dissolves at once).
 };
 
 // How many consecutive frames the card must sit still before the intro arms
@@ -499,6 +502,11 @@ export function createParticleScroll(
     let time = 0;
     let introDone = false;
     let introReady = false;
+    // The rise: 0 → 1 over `config.rise` seconds once the intro arms. While it
+    // runs, the formation line eases up from below the screen to its resting
+    // height, so the dust edge slides up from the bottom instead of the whole
+    // lower area bursting into dust at once.
+    let riseT = 0;
 
     function rowTargetFor(cardRowY: number) {
         if (!introDone) return 1;
@@ -516,7 +524,15 @@ export function createParticleScroll(
                 Math.max((scrollSmooth - (max - h * 0.5)) / (h * 0.5), 0),
                 1,
             );
-            line += (h + band - line) * endP * endP;
+            const rest = line;
+            line += (h + band - rest) * endP * endP;
+            // During the opening rise, the line starts at the bottom edge of
+            // the screen (nothing is dust yet — a row only starts dissolving
+            // once the line has passed above it) and eases up to its resting
+            // height. Cubic ease-out: quick at first, gently slowing to a
+            // stop. Whichever of the two pushes holds the line lower wins.
+            const riseLeft = Math.pow(1 - riseT, 3);
+            line = Math.max(line, rest + (h - rest) * riseLeft);
         }
         const vy = cardRowY - (scrollSmooth - cardOffset());
         return Math.min(Math.max((line + band - vy) / band, 0), 1);
@@ -733,15 +749,21 @@ export function createParticleScroll(
         const justArmed =
             !introDone && introReady && stillFrames >= STILL_FRAMES_TO_ARM;
         if (justArmed) introDone = true;
+        if (introDone && riseT < 1) {
+            riseT =
+                config.rise > 0 ? Math.min(riseT + delta / config.rise, 1) : 1;
+        }
         // Stop the loop once nothing can change on screen: no snapshot to
         // draw (or a stale one), or everything landed and at rest. Scattered
-        // dust keeps it running — the grains idly drift.
+        // dust keeps it running — the grains idly drift — and so does the
+        // opening rise until it finishes.
         const idle =
             !snapshotMatches() ||
             (scrollSmooth === scrollTop &&
                 !rowsAnimating &&
                 rowsAssembled &&
                 (introDone || !introReady) &&
+                riseT >= 1 &&
                 lag === 0);
         // (justArmed: on the arming frame every row is still "landed", which
         // would otherwise look idle and stop the loop before the dissolve.)
