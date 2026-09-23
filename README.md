@@ -6,10 +6,10 @@ Personal portfolio for **Arsh Kaushik**, implemented from a Figma design.
 
 - **Next.js 16** (App Router)
 - **TypeScript**
-- **Tailwind CSS v4** — CSS-first config via `@theme` in `globals.css` (no `tailwind.config` file)
+- **Tailwind CSS v4**
 - **pnpm**
 - Fonts via `next/font`: **Instrument Serif** (display) + **Geist** (UI)
-- Analytics: **Microsoft Clarity** + **PostHog** — both running side by side (session replay + heatmaps in each) to compare before picking one long-term
+- Analytics: **Microsoft Clarity** + **PostHog**
 
 ## Getting started
 
@@ -24,59 +24,6 @@ Other scripts:
 pnpm build      # production build
 pnpm start      # serve the production build
 pnpm lint       # ESLint
-```
-
-### Regenerating an image asset
-
-Every image here is a Figma export, committed as a file — there's no build step and
-no runtime optimiser. Two of the three go **export PNG → convert once to WebP →
-commit**; `sharp` is a devDependency used only for that conversion. The share card is
-the exception and stays PNG (see below).
-
-| Asset | Export at | Lives in |
-|---|---|---|
-| Case-study thumbnail | **2208×1184** — exactly 4× the home card's 552×296 box and 3× the detail hero's 736×394, so one file serves both | `public/thumbnails/<study>.webp` |
-| Point-card illustration | **1086×900** — the ratio the card's asset well locks | `public/csAssets/<study>/<section>-assetN.webp` |
-| Home-page share card | **1200×630** — the OG standard. Export at this size, **don't downscale a larger one** (a native render is ~2× more faithful on thin type and hairlines) | `src/app/opengraph-image.png` |
-
-The share card is the exception to the WebP rule: **keep it PNG.** `og:image` support
-for WebP is inconsistent across LinkedIn and older crawlers, and it's the one asset
-where compatibility beats file size. It also lives in `src/app/`, not `public/`, so
-Next's file convention writes the `og:image` tags and fingerprints the URL — which is
-what makes a redesign actually bust LinkedIn's preview cache instead of showing the
-old card for weeks.
-
-> **The hero tagline is baked into that PNG.** If you reword `heroTagline` in
-> `content.ts`, the page and the meta tags update but the share card keeps the old
-> wording until you re-export it. Nothing warns you — worth a note next to whatever
-> copy change you make.
-
-```bash
-# with the fresh PNG export sitting at /tmp/designSystem.png
-node -e '
-const sharp = require("sharp");
-sharp("/tmp/designSystem.png")
-  .webp({ nearLossless: true, quality: 60, effort: 6 })
-  .toFile("public/thumbnails/designSystem.webp")
-  .then(({ size }) => console.log((size / 1024).toFixed(0), "KB"));
-'
-```
-
-`nearLossless` deviates from the source by at most 2/255 and is ~2.5× smaller than
-PNG. Keep 2208×1184 — see [`learn/vercel-isr-quota.md`](learn/vercel-isr-quota.md)
-§10 for why a bigger export is not sharper.
-
-### Environment variables
-
-Analytics are gated to production only (see `src/components/Clarity.tsx` /
-`src/instrumentation-client.ts`), so none of this is required for `pnpm dev` —
-only for a production build/deploy to actually report data. Create a
-`.env.local` (gitignored) with:
-
-```bash
-NEXT_PUBLIC_CLARITY_PROJECT_ID=<clarity project id>
-NEXT_PUBLIC_POSTHOG_KEY=<posthog project api key, phc_...>
-NEXT_PUBLIC_POSTHOG_HOST=/ingest   # relative — proxied by next.config.ts, not posthog.com directly
 ```
 
 ## Project structure
@@ -124,48 +71,29 @@ next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* ->
 
 ## Notable implementation details
 
-- **Content-driven** — page copy lives in `src/lib/content.ts` and case studies in the typed `src/lib/case-studies/` module (one file per study + a barrel `index.ts`); components render from that data, so adding a case study or link is a data edit, not a layout edit. Each study carries exactly **one** summary sentence, `subtitle`, and every surface reads it: the home card, the detail view, the `<meta description>`, the generated og:image, `/llms.txt`, and the JSON-LD `description`. The schema previously also had a `deck` — a second, near-duplicate sentence transcribed from the source markdown that no view ever rendered — which has been removed, so there is no longer a second variant that can drift out of step with the first.
-- **URL-addressable case-study modal** — clicking a "Selected work" card opens the study as an overlay over the home page with its own URL (`/work/<slug>`), so it's shareable and the browser Back button closes it; loading that URL directly (or refreshing mid-view) renders the same dimmed-home-behind-the-card look, closing via a real navigation instead of browser history. Built with Next.js parallel + intercepting routes. Full walkthrough in [`learn/case-study-modal.md`](learn/case-study-modal.md), with the direct-load/refresh behavior and the two navigation bugs behind it in [`learn/case-study-refresh-behavior.md`](learn/case-study-refresh-behavior.md).
-- **Case-study point cards** — "What I did" and "Impact" render each point as a card: the same lead/body copy on top, a full-bleed illustration pinned to the bottom. Opt-in per section via an optional `asset` on `CaseStudyPoint`; a section only becomes a card grid when *every* point in it has one, otherwise it falls back to the original plain text list — so a study whose visuals aren't made yet keeps its old look and flips over the moment its data file declares assets. Every asset is authored at 1086×900, and the card's well locks that ratio (`aspect-[1086/900]`), which is why one rule lands on the design's 362×300 desktop and 370×306.63 mobile wells exactly and the image only ever scales to the card's width — never re-cropped. Two columns at `≥600px`, one below; an odd point count lets the last card span the full width.
-- **Design tokens** — colours and fonts are defined once in `globals.css` (`@theme`) and referenced everywhere (`bg-page`, `text-textPrimary`, etc.).
-- **Custom dashed hairlines** — the exact 10px/10px dashes from the design can't be done with `border-dashed` (the browser controls dash length), so they're painted with a small, composable background-gradient utility system. Full walkthrough in [`learn/dashed-borders.md`](learn/dashed-borders.md).
-- **Spring hover interactions** — the case-study cards and sidebar links animate with a spring easing (`--ease-spring-gentle`) sampled from Figma. Walkthrough in [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md).
-- **Theme-aware favicons** — the browser tab icon switches with the OS/browser colour scheme via `prefers-color-scheme` (light/dark PNGs wired through the Next.js Metadata API in `layout.tsx`).
-- **Thumbnails are one WebP per study, in a plain `<img>`** — not `next/image`, and no longer inline SVG. Exported from Figma at 2208×1184 (exactly 4× the home card's box, 3× the detail hero's), so one file serves both surfaces; the card crops left-anchored (`object-left`) and the hero centre-crops, matching the design. **This reversed an earlier decision, and the reason is worth knowing:** the thumbnails used to be embedded into the HTML as inline `<svg>` because vectors were genuinely the sharpest option — but that put ~1.4 MB of markup in the page, which Next.js then *duplicated* in the RSC hydration payload, leaving the home page at **2,833 KB of HTML for 14 KB of actual content**. Vercel bills ISR cache reads in 8 KB units, so every request cost **354 read units instead of ~2** — 75% of the 1,000,000-read free tier consumed on fewer than 10 real visitors, with automatic project pausing at 100%. It's now **30 KB / 3 units**, and the before/after pixel diff came in under 1.03/255 across every breakpoint. Full story with dashboard screenshots in [`learn/vercel-isr-quota.md`](learn/vercel-isr-quota.md); the superseded vector-era reasoning (still sound on its own terms) in [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md) and [`learn/inline-svg-thumbnails-explained.md`](learn/inline-svg-thumbnails-explained.md).
-- **Social-share ready** — `metadataBase` + Open Graph/Twitter tags in `layout.tsx`, per-study `generateMetadata`, and og:images wired through Next's file convention: the **home-page card is a designed static asset** (`src/app/opengraph-image.png`, 1200×630 exported from Figma — it replaced a `next/og` version that couldn't reproduce the site's 10/10 dash rhythm), while the **three case-study cards are still generated at build time** so a shared study link previews that study's own title and subtitle. Next fingerprints the image URL, so redesigning the card busts LinkedIn/Facebook's preview cache instead of serving the old one for weeks — plus `sitemap.ts` and `robots.ts` sourced from the same case-study data the pages render from.
-- **Machine-readable for AI, not just search engines** — recruiters increasingly ask an AI rather than Google, in two modes: *discovery* ("find me a designer who…", the AI has to match on facts) and *evaluation* ("here's his portfolio, assess him", the AI has to extract a picture from one fetch). Two things serve that. **schema.org JSON-LD** (`src/lib/structured-data.ts`) states identity as data rather than prose — name, role, location, LinkedIn/GitHub, both degrees, and a `knowsAbout` skills list *derived* from each study's Stack row, so adding a case study updates it for free. A single `@graph` defines the Person once per document; case studies reference it by `@id` rather than duplicating it. And **`/llms.txt`** (`src/app/llms.txt/route.ts`) is a plain-text brief — same idea as robots.txt, but "here's what this site is about" — carrying every study's subtitle, role, scope, stack and impact metrics in one fetch, because the home page is only ~142 visible words. Both are assembled from the same content modules the pages render from, so neither can drift. Full write-up, including what this deliberately does *not* claim, in [`learn/machine-readable-portfolio.md`](learn/machine-readable-portfolio.md).
-- **Accessibility hardened** — the case-study dialog is a real focus trap (`inert` applied to everything outside it, correct in both its DOM shapes), collapsed mobile-nav links leave the tab order (`inert`), the home page has a true h1 → h2 → h3 outline, backdrop-close ignores text-selection drags and scrollbar clicks, closing a hard-loaded study doesn't pollute Back-button history (`router.replace`), keyboard focus rings on the case-study cards sit in their own stacking layer (`focus-visible:z-10`) so the card below can't paint over the bottom edge of the ring, and bad URLs land on a branded 404 (`not-found.tsx`).
-- **Fully responsive, three tiers** — see the dedicated [Responsive design](#responsive-design) section below for the breakpoints, why they land where they do, and the mechanism behind each one.
-- **Analytics run production-only** — both Clarity (`src/components/Clarity.tsx`) and PostHog (`src/instrumentation-client.ts`) no-op under `pnpm dev`, so local testing never pollutes real visitor data. PostHog is proxied through this site's own domain (`/ingest/*`, see `next.config.ts`) rather than calling posthog.com directly, since ad-blockers commonly block the latter but not same-origin traffic.
+- **Content-driven** — page copy and case studies live in `src/lib/content.ts` and `src/lib/case-studies/` as typed data; components render from it, so adding a case study or link is a data edit, not a layout edit.
+- **URL-addressable case-study modal** — clicking a "Selected work" card opens the study as an overlay with its own shareable URL (`/work/<slug>`), built with Next.js parallel + intercepting routes. Full walkthrough in [`learn/case-study-modal.md`](learn/case-study-modal.md), refresh/back-button behavior in [`learn/case-study-refresh-behavior.md`](learn/case-study-refresh-behavior.md).
+- **Case-study point cards** — "What I did" and "Impact" points can render as illustrated cards instead of plain text, opt-in per section.
+- **Design tokens** — colours and fonts are defined once in `globals.css` (`@theme`) and referenced everywhere.
+- **Custom dashed hairlines** — the design's exact dash rhythm isn't achievable with `border-dashed`, so it's painted with a small gradient-based utility system. Walkthrough in [`learn/dashed-borders.md`](learn/dashed-borders.md).
+- **Spring hover interactions** — case-study cards and sidebar links animate with a spring easing sampled from Figma. Walkthrough in [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md).
+- **Theme-aware favicons** — the browser tab icon switches with the OS/browser colour scheme.
+- **Optimized thumbnails** — one WebP export per case study, sized to serve both the home card and the detail hero. Full story, including a Vercel request-quota incident this solved, in [`learn/vercel-isr-quota.md`](learn/vercel-isr-quota.md).
+- **Social-share ready** — Open Graph/Twitter metadata, a designed static share card for the home page, and generated per-study share cards.
+- **Machine-readable for AI** — schema.org JSON-LD and a `/llms.txt` brief make the site legible to AI tools, not just search engines. Full write-up in [`learn/machine-readable-portfolio.md`](learn/machine-readable-portfolio.md).
+- **Accessibility hardened** — real focus trap on the case-study dialog, correct heading outline, keyboard-safe backdrop close, clean back-button history, branded 404.
+- **Fully responsive, three tiers** — see [Responsive design](#responsive-design) below.
+- **Analytics run production-only** — Clarity and PostHog no-op under `pnpm dev`, so local testing never pollutes real visitor data.
 
 ## Responsive design
 
-The layout is fully responsive across **three breakpoint tiers**, built and verified as three separate phases against Figma references at each width — not one flat mobile-first pass — because the design changes *mechanism*, not just size, at each tier.
+Built and verified as three separate phases against Figma references at each width — the design changes mechanism, not just size, at each tier.
 
-### The three tiers
-
-| Width | What changes | Key file(s) |
-|---|---|---|
-| **≥900px** | True desktop: a fixed 260px sidebar, `position: sticky` in the flex row alongside a fixed 600px content column | `Sidebar.tsx` |
-| **600–900px** | The sidebar becomes a `position: fixed`, always-expanded bottom pill (identity + all 4 links in one row); the content column goes full-bleed | `Sidebar.tsx` — same component, `min-[600px]:`/`min-[900px]:` variants |
-| **<600px** | The pill collapses further to identity + a tappable chevron, links hidden until expanded; case-study cards and the detail view switch from fixed-height to auto-height layouts | `MobileNavPill.tsx`, `CaseStudyCard.tsx`, `CaseStudyDetail.tsx` |
-
-Below 402px (Figma's actual reference width for the mobile tier) there's no fourth breakpoint — every measurement in the `<600px` tier is already expressed as `calc(100% - Npx)` / `w-full` rather than a fixed pixel value, so it keeps scaling correctly on narrower phones with no extra code.
-
-### Why 600px, and not Figma's nominal 480/402px
-
-Figma's own design intent puts the mobile-tier handoff at 480px (drawn at a 402px reference, meant to fill up to 480). But `main`'s wider tier is a literal `width: 600px`, and a 600px-wide box cannot fit inside a container narrower than 600px — that's arithmetic, not a design choice. Verified empirically: at exactly 596px there's no overflow; at 595px there is (the real floor, driven by `main`'s 600px column plus Hero's fixed 548px tagline). Every "restore the wider tier" breakpoint in this codebase (`Sidebar`, `MobileNavPill`, `CaseStudyCard`, `CaseStudyDetail`, `Hero`, `content.ts`) uses 600px consistently for this reason — see the comment on `snap-center-x` in `globals.css` for the full derivation.
-
-### Mechanism, tier by tier
-
-- **Sidebar → bottom pill → collapsible pill.** `Sidebar.tsx` owns the whole `≥600px` range as one component (`min-[900px]:` variants swap it between a `fixed` bottom pill and a sticky in-flow column); `MobileNavPill.tsx` is a separate `"use client"` component for `<600px` — the first genuinely interactive state in the layout (a chevron button toggling the links panel). Its open/close animation uses `grid-template-rows: 0fr ↔ 1fr`, the standard CSS-only way to animate to/from an intrinsic "auto" height with no JS measurement.
-- **Case-study cards.** At `≥600px` the description sits `absolute` beneath a fixed-height title box (permanently revealed at 600–900px, hover-gated at 900px+); below 600px it's plain auto-height flow (`order-first`/`order-last` fixes the visual reading order without touching DOM order, which the wider tiers' hover mechanics still depend on).
-- **Case-study detail.** The thumbnail uses `aspect-[736/394]` instead of a fixed pixel height (verified mathematically identical to the old desktop value, and correct at every width in between); the metadata table stacks label-above-value below 600px instead of side-by-side.
-- **Hero.** The tagline drops its fixed 548px width below 600px; the stats row switches `flex-row` → `flex-col` (a real fix, not just fidelity — the fixed-width cells would otherwise squeeze the flexible first cell down to near-zero at in-between widths).
-
-### Animated breakpoint transitions
-
-Crossing the 900px/600px thresholds used to be an instant snap — pure CSS media-query swaps of `position` (`sticky ↔ fixed`) and `display` (`none ↔ flex`), neither of which a CSS `transition` can animate (there's no continuous value to interpolate between). Both pills now play a slide-up-from-below entrance instead, via a CSS `@keyframes` scoped to each pill's own media query in `globals.css` — an `animation` (unlike a `transition`) plays from scratch the instant `animation-name` starts applying to an element, regardless of what caused that, media query included. Opening a case study slides `BackNav` in sync with the card, reusing `CaseStudyOverlay`'s existing `open` boolean rather than a second animation state.
+| Width | What changes |
+|---|---|
+| **≥900px** | True desktop: fixed sidebar alongside a centered content column |
+| **600–900px** | Sidebar becomes an always-expanded bottom pill; content goes full-bleed |
+| **<600px** | Pill collapses to identity + an expandable chevron; case-study cards and the detail view switch to auto-height layouts |
 
 ## Status
 
@@ -175,12 +103,12 @@ Crossing the 900px/600px thresholds used to be an instant snap — pure CSS medi
 
 The [`learn/`](learn/) folder documents the trickier pieces line-by-line — the reasoning behind the code and, where relevant, the debugging story:
 
-- [`learn/dashed-borders.md`](learn/dashed-borders.md) — the dashed-hairline system and the CSS variable-inheritance bug behind it.
-- [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md) — the spring-based hover reveal (title slide + description fade).
-- [`learn/case-study-modal.md`](learn/case-study-modal.md) — the URL-addressable case-study overlay: parallel + intercepting routes, the content schema, backdrop, and animation.
-- [`learn/focus-visible-outline.md`](learn/focus-visible-outline.md) — the stray focus-ring-on-close bug and the focus-management fix (`:focus-visible`).
-- [`learn/machine-readable-portfolio.md`](learn/machine-readable-portfolio.md) — making the site legible to AI tools: what JSON-LD and `llms.txt` actually are in plain terms, why identity and substance need different carriers, the `@id` trick that stops the Person being described three times, and an honest audit of what the structured data does *not* say.
-- [`learn/vercel-isr-quota.md`](learn/vercel-isr-quota.md) — **how a portfolio with under 10 visitors burned 75% of a 1,000,000-request quota.** What ISR and Request Caching actually are in plain English, how to read the Vercel dashboard (with screenshots), why an "ISR read" is an 8 KB block rather than a page view, the hidden duplicate copy of every inlined SVG, and the fix. Also: why bigger images are not sharper, and two confident wrong diagnoses.
-- [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md) — *(superseded, kept for its diagnostics)* the three-act thumbnail-blur saga: `<img>`-SVG blur on WebKit → the exact-size WebP raster experiment → why inline `<svg>` won on visual quality. Its engine/DPR blur matrix is still accurate and was re-confirmed during the replacement.
-- [`learn/inline-svg-thumbnails-explained.md`](learn/inline-svg-thumbnails-explained.md) — *(superseded)* junior-dev-level walkthrough of the thumbnail code: the server/client boundary and `fs`, `dangerouslySetInnerHTML`, `preserveAspectRatio`, `srcset`/`sizes`, and a gotchas checklist. Its "OLD" column — rasters behind a plain `<img>` — is close to what the site ships today.
-- [`learn/case-study-refresh-behavior.md`](learn/case-study-refresh-behavior.md) — the "no way back to home" bug after refreshing mid-case-study, the desktop/mobile navigation fixes, and the redesign that makes a direct load look like the soft-nav overlay.
+- [`learn/dashed-borders.md`](learn/dashed-borders.md) — the dashed-hairline system and the bug behind it.
+- [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md) — the spring-based hover reveal.
+- [`learn/case-study-modal.md`](learn/case-study-modal.md) — the URL-addressable case-study overlay.
+- [`learn/focus-visible-outline.md`](learn/focus-visible-outline.md) — a focus-ring bug and its fix.
+- [`learn/machine-readable-portfolio.md`](learn/machine-readable-portfolio.md) — making the site legible to AI tools.
+- [`learn/vercel-isr-quota.md`](learn/vercel-isr-quota.md) — how a low-traffic portfolio burned 75% of a request quota, and the fix.
+- [`learn/svg-thumbnail-blur.md`](learn/svg-thumbnail-blur.md) — *(superseded)* the thumbnail-blur investigation that preceded the current approach.
+- [`learn/inline-svg-thumbnails-explained.md`](learn/inline-svg-thumbnails-explained.md) — *(superseded)* a walkthrough of the earlier inline-SVG thumbnail implementation.
+- [`learn/case-study-refresh-behavior.md`](learn/case-study-refresh-behavior.md) — the case-study refresh/back-button bug and its fix.
