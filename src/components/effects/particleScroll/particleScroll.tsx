@@ -6,8 +6,8 @@ import {
     createParticleScroll,
     type ParticleScrollInstance,
     type ParticleScrollOptions,
-} from "./particle-scroll/engine";
-import { snapshotCard } from "./particle-scroll/snapshot";
+} from "./engine";
+import { snapshotCard } from "./snapshot";
 
 // Scroll-driven "sand" reveal for the case-study card: below a formation line
 // near the bottom of the screen the card is dust; scrolling it up past the
@@ -58,8 +58,8 @@ export default function ParticleScrollReveal({
     scrollerRef: RefObject<HTMLElement | null>;
     // The element to reveal (the card wrapper).
     cardRef: RefObject<HTMLElement | null>;
-    // The overlay's open state — when it flips, the card slides, and the
-    // canvas needs to redraw each frame to follow it.
+    // The overlay's open state. When it flips back to false the overlay is
+    // closing, and the effect switches off (see `closing` below).
     open: boolean;
     options?: ParticleScrollOptions;
 }) {
@@ -69,7 +69,17 @@ export default function ParticleScrollReveal({
         () => true,
     );
     const [failed, setFailed] = useState(false);
-    const active = !reducedMotion && !failed;
+    // Closing = `open` went true -> false. (It also starts out false, before
+    // the slide-up begins, so "false" alone doesn't mean closing.) Remembering
+    // "has it been open?" in state, updated during render, is React's
+    // recommended way to react to a prop's PREVIOUS value.
+    // On close the canvas unmounts and the engine removes its mask, so the
+    // card slides away whole: the canvas can't follow the slide-down any
+    // better than it could the slide-up (see the intro in engine.ts).
+    const [hasOpened, setHasOpened] = useState(false);
+    if (open && !hasOpened) setHasOpened(true);
+    const closing = hasOpened && !open;
+    const active = !reducedMotion && !failed && !closing;
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const engineRef = useRef<ParticleScrollInstance | null>(null);
     // The first options win at creation; later changes go through setOptions.
@@ -170,10 +180,6 @@ export default function ParticleScrollReveal({
     useEffect(() => {
         if (options) engineRef.current?.setOptions(options);
     });
-
-    useEffect(() => {
-        engineRef.current?.wake();
-    }, [open]);
 
     if (!active) return null;
     // `fixed` + full viewport height; the engine sets its width to the

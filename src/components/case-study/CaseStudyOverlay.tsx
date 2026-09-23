@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import type { CaseStudy } from "@/lib/case-studies";
 import CaseStudyDetail from "./CaseStudyDetail";
 import BackNav from "./BackNav";
-import ParticleScrollReveal from "@/components/effects/ParticleScrollReveal";
+import ParticleScrollReveal from "@/components/effects/particleScroll/particleScroll";
 
 // The dimmed overlay that presents a case study on top of the home page.
 // Two callers, same presentation:

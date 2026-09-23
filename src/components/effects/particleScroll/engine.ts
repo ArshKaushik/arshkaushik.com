@@ -87,26 +87,31 @@ export interface ParticleScrollInstance {
     setSnapshot: (snapshot: CardSnapshot) => void;
     /** Update effect options live. */
     setOptions: (options: ParticleScrollOptions) => void;
-    /** Restart the render loop, e.g. because the card is about to move. */
-    wake: () => void;
     /** Stop the loop and release all GPU resources. */
     destroy: () => void;
 }
 
+// Upstream's defaults. Override any of them per use through the component's
+// `options` prop (see CaseStudyOverlay.tsx) — anything left out keeps these.
 const DEFAULTS: Required<ParticleScrollOptions> = {
-    point: 0.68,
-    band: 420,
-    density: 2,
-    size: 1.25,
-    spread: 220,
-    gravity: 0.35,
-    drift: 0.7,
-    swirl: 60,
-    stagger: 0.7,
-    fade: 0.85,
-    settle: 1.2,
-    smoothing: 0.6,
+    point: 0.68, // Formation line, as a fraction of screen height from the top (0 = top, 1 = bottom). Lower = more of the card is dust.
+    band: 420, // Height (px) of the zone below the line where grains are part-way home. Bigger = softer, longer transition.
+    density: 2, // Grain spacing (px). 1 = finest sand (most grains, most GPU work); 3–4 = chunkier. Minimum 1.
+    size: 1.25, // Size (px) of a fully scattered grain. Bigger = dust is easier to see. Grains grow to fill their cell as they land.
+    spread: 220, // How far (px) grains scatter from their home spot. Bigger = wider, more airy cloud.
+    gravity: 0.35, // Pull on the scattered cloud, -1 to 1. Positive sinks it (sand settling), negative lifts it, 0 = none.
+    drift: 0.7, // Speed of the idle floating of scattered grains, 0 to 1. 0 = frozen dust.
+    swirl: 60, // Sideways arc (px) grains take while flying home. 0 = straight lines.
+    stagger: 0.7, // How random each grain's landing time is, 0 to 1. 0 = each row lands as one neat line; higher = more organic.
+    fade: 0.85, // Opacity of fully scattered grains, 0 to 1. 1 = solid; lower = fainter dust.
+    settle: 1.2, // Seconds a row takes to form once it's above the line. Lower = snappier; higher = slower, dreamier.
+    smoothing: 0.6, // Seconds the effect trails your actual scroll. 0 = follows instantly; higher = floatier, more lag.
 };
+
+// How many consecutive frames the card must sit still before the intro arms
+// (~50ms at 60fps). More than one, so the spring's brief pause at the top of
+// its overshoot can't be mistaken for the end of the slide.
+const STILL_FRAMES_TO_ARM = 3;
 
 const HASH = `
 float hash (vec2 p) {
@@ -421,8 +426,8 @@ export function createParticleScroll(
     }
 
     // Live geometry, re-read every frame. `rect` is the card's box on screen
-    // (getBoundingClientRect includes the slide-up transform, so the dust
-    // travels with the card while it animates in/out).
+    // (getBoundingClientRect includes the slide-up transform, which is how
+    // the intro can tell when the slide has finished).
     let rect = card.getBoundingClientRect();
 
     // The canvas is `position: fixed` and covers the dialog's whole visible
@@ -662,6 +667,7 @@ export function createParticleScroll(
     let lag = 0;
     let lastScrollTop = scroller.scrollTop;
     let lastRectTop = rect.top;
+    let stillFrames = 0;
 
     function frame(now: number) {
         if (destroyed) return;
@@ -669,8 +675,9 @@ export function createParticleScroll(
         lastTime = now;
         time += delta;
         rect = card.getBoundingClientRect();
-        // The card moving on screen WITHOUT a scroll (the open/close slide)
-        // is also a reason to keep drawing, so the dust follows it.
+        // Is the card moving on screen WITHOUT a scroll (the slide-up)? The
+        // loop keeps running while it does, to notice when it stops (see the
+        // intro below).
         const moving = Math.abs(rect.top - lastRectTop) > 0.01;
         lastRectTop = rect.top;
         const scrollTop = scroller.scrollTop;
@@ -684,13 +691,19 @@ export function createParticleScroll(
         scrollSmooth += (scrollTop - scrollSmooth) * k;
         if (Math.abs(scrollTop - scrollSmooth) < 0.5) scrollSmooth = scrollTop;
         render(delta);
-        // The intro: the first frame after the snapshot arrives draws every
-        // row as landed (rowTargetFor returns 1 until introDone), THEN the
-        // effect arms — so rows below the formation line visibly blow away
-        // instead of popping straight to dust. Upstream waited a full second
-        // here; this arms right away, since the snapshot itself already
-        // arrives after the card has started opening.
-        if (introReady) introDone = true;
+        // The intro. Until it's armed, every row counts as landed
+        // (rowTargetFor returns 1), so the canvas draws nothing and the card
+        // is simply the live card. It arms once the snapshot is in AND the
+        // card has stopped moving for a few frames — i.e. the slide-up has
+        // finished. Then rows below the formation line visibly blow away, in
+        // place. Arming mid-slide looked broken: the slide is animated by the
+        // browser outside JavaScript, while this canvas redraws from
+        // JavaScript, so during the slide the two drift apart and the card
+        // tore in two. (Upstream instead waited a flat second after capture.)
+        stillFrames = moving ? 0 : stillFrames + 1;
+        const justArmed =
+            !introDone && introReady && stillFrames >= STILL_FRAMES_TO_ARM;
+        if (justArmed) introDone = true;
         // Stop the loop once nothing can change on screen: no snapshot to
         // draw (or a stale one), or everything landed and at rest. Scattered
         // dust keeps it running — the grains idly drift.
@@ -701,7 +714,9 @@ export function createParticleScroll(
                 rowsAssembled &&
                 (introDone || !introReady) &&
                 lag === 0);
-        if (idle && !moving) {
+        // (justArmed: on the arming frame every row is still "landed", which
+        // would otherwise look idle and stop the loop before the dissolve.)
+        if (idle && !moving && !justArmed) {
             running = false;
             return;
         }
@@ -865,7 +880,6 @@ export function createParticleScroll(
             Object.assign(config, next);
             start();
         },
-        wake: start,
         destroy() {
             destroyed = true;
             applyMask(null);
