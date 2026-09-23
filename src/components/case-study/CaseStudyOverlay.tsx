@@ -275,10 +275,10 @@ export default function CaseStudyOverlay({
                     <CaseStudyDetail study={study} />
                 </div>
             </div>
-            {/* The sand reveal's canvas. A sibling of the sliding wrapper
-                above, not a child of it: the wrapper's translate transform
-                would make a `position: fixed` canvas stick to the card
-                instead of the screen. Rendered after the card so it paints
+            {/* The sand reveal's canvas. A direct child of this dialog (the
+                scroll container it positions itself in), not of the sliding
+                wrapper above: inside that wrapper it would ride along with
+                the slide-up transform. Rendered after the card so it paints
                 on top of it, and before BackNav so the pill stays above. */}
             <ParticleScrollReveal
                 scrollerRef={dialogRef}

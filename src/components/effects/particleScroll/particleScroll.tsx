@@ -182,13 +182,15 @@ export default function ParticleScrollReveal({
     });
 
     if (!active) return null;
-    // `fixed` + full viewport height; the engine sets its width to the
-    // dialog's visible width. w-0 until then so it can't flash over anything.
+    // Absolutely positioned inside the dialog's scrolling content; the engine
+    // sizes it to the visible area and moves it down by the scroll amount
+    // each frame (engine.ts, syncCanvasBox, explains why not `fixed`).
+    // Zero-size until then so it can't flash over anything.
     return (
         <canvas
             ref={canvasRef}
             aria-hidden="true"
-            className="pointer-events-none fixed top-0 left-0 h-full w-0"
+            className="pointer-events-none absolute top-0 left-0 h-0 w-0"
         />
     );
 }

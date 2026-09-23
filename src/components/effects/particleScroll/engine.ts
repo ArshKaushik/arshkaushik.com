@@ -69,7 +69,7 @@ export interface ParticleScrollElements {
     scroller: HTMLElement;
     /** The element that was snapshotted (the card). Its live rect positions everything. */
     card: HTMLElement;
-    /** Canvas the effect renders into. Positioned `fixed` over the viewport. */
+    /** Canvas the effect renders into. Absolutely positioned inside the scroller; the engine sizes and moves it. */
     output: HTMLCanvasElement;
 }
 
@@ -430,18 +430,46 @@ export function createParticleScroll(
     // the intro can tell when the slide has finished).
     let rect = card.getBoundingClientRect();
 
-    // The canvas is `position: fixed` and covers the dialog's whole visible
-    // area (clientWidth leaves out a classic scrollbar), so grains can drift
-    // past the card's edges. Its drawing buffer is sized at up to 2x device
-    // pixels, matching the snapshot.
+    // The canvas covers the dialog's whole visible area (clientWidth leaves
+    // out a classic scrollbar), so grains can drift past the card's edges.
+    //
+    // WHY it lives INSIDE the scrolling content (absolute + moved down by
+    // scrollTop each frame) rather than `position: fixed`: the browser
+    // scrolls the page off the main thread, so for a frame or so the card —
+    // and its mask — has already moved while this canvas still shows the
+    // previous frame. A fixed canvas stays put during that lag, which opened
+    // a gap right under the mask's edge: a grey strip of the page behind,
+    // visible whenever you scrolled down. Inside the scrolling content, the
+    // browser moves the canvas together with the card and the mask, so they
+    // stay lined up until the next frame re-centres it.
+    //
+    // `canvasOffset` is where the canvas's top sits relative to the top of
+    // the screen — normally 0. It's only non-zero if the canvas had to be
+    // held back so its bottom never pokes past the end of the content (which
+    // would make the dialog scroll further; see the clamp below).
+    let canvasOffset = 0;
     function syncCanvasBox() {
         const cssWidth = scroller.clientWidth;
+        const cssHeight = scroller.clientHeight;
         if (output.style.width !== `${cssWidth}px`) {
             output.style.width = `${cssWidth}px`;
         }
+        if (output.style.height !== `${cssHeight}px`) {
+            output.style.height = `${cssHeight}px`;
+        }
+        // End of the dialog's real content: the card's bottom plus the
+        // dialog's bottom padding, in scrolled-content coordinates.
+        const scrollTop = scroller.scrollTop;
+        const contentEnd =
+            scrollTop +
+            rect.bottom +
+            parseFloat(getComputedStyle(scroller).paddingBottom || "0");
+        const top = Math.max(0, Math.min(scrollTop, contentEnd - cssHeight));
+        canvasOffset = top - scrollTop;
+        output.style.transform = `translate3d(0, ${top}px, 0)`;
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
         const width = Math.max(1, Math.round(cssWidth * dpr));
-        const height = Math.max(1, Math.round(output.clientHeight * dpr));
+        const height = Math.max(1, Math.round(cssHeight * dpr));
         if (output.width !== width || output.height !== height) {
             output.width = width;
             output.height = height;
@@ -576,7 +604,8 @@ export function createParticleScroll(
         );
         // Card-space scroll: how far the card's top is ABOVE the viewport top
         // (negative while the card still starts lower down the screen).
-        const scroll = -rect.top;
+        // (Measured from the canvas's own top, which is normally the screen's.)
+        const scroll = canvasOffset - rect.top;
         const gridX = Math.ceil(w / density);
         const winStart = Math.floor(scroll / density);
         const winLen = Math.ceil(h / density) + 2;
