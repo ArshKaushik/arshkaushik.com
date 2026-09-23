@@ -1,6 +1,6 @@
 import type { CardSnapshot } from "./engine";
 
-// Takes a one-time picture of the card for the particle effect to sample.
+// Takes a picture of the card for the particle effect to sample.
 //
 // HOW: modern-screenshot clones the element, inlines every computed style,
 // embeds its images and web fonts as data: URLs, wraps the lot in an SVG
@@ -23,15 +23,18 @@ import type { CardSnapshot } from "./engine";
 // narrow phone layout is taller, so scale down rather than fail if needed.
 const MAX_CANVAS_PIXELS = 16_000_000;
 
-// Point-card images are loading="lazy", so any that haven't scrolled near
-// the viewport yet haven't loaded — and modern-screenshot waits for every
-// <img> inside the element to finish loading first (up to its timeout,
-// 30s by default). The snapshot is going to download them anyway, so flip
-// them to eager up front and wait for them ourselves. This only changes
-// WHEN those images load, not what's rendered. A failed image resolves
-// rather than rejects: the snapshot just shows the empty grey well.
-async function loadImages(root: HTMLElement) {
-    const images = Array.from(root.querySelectorAll("img"));
+// How long the library waits between those Safari redraws. Its default is
+// 100ms, once per embedded image/font — ~1.2s on the design-system card.
+// 16ms (one frame) gave a pixel-identical WebKit snapshot in testing, at
+// ~0.5s. Turning the redraws off entirely did NOT: images came out wrong.
+const SAFARI_REDRAW_INTERVAL = 16;
+
+// Point-card images are loading="lazy", so the ones far down the card
+// haven't loaded when the overlay opens. For the FULL snapshot we flip them
+// to eager and wait for every image. This only changes WHEN those images
+// load, not what's rendered. A failed image resolves rather than rejects:
+// the snapshot just shows its empty grey well.
+async function loadImages(images: HTMLImageElement[]) {
     await Promise.all(
         images.map((img) => {
             if (img.loading === "lazy") img.loading = "eager";
@@ -44,17 +47,37 @@ async function loadImages(root: HTMLElement) {
     );
 }
 
+/**
+ * `quick: true` doesn't wait for images that haven't loaded yet — they're
+ * left out of the picture (their grey wells show instead), so the effect can
+ * start almost immediately. `complete` in the result says whether anything
+ * was left out, i.e. whether a full snapshot should follow.
+ */
 export async function snapshotCard(
     card: HTMLElement,
     maxTextureSize: number,
-): Promise<CardSnapshot & { ms: number; scale: number }> {
+    { quick }: { quick: boolean },
+): Promise<CardSnapshot & { ms: number; scale: number; complete: boolean }> {
     // Web fonts first: a snapshot taken before Instrument Serif / Geist have
     // loaded would bake the fallback font into every grain.
     await document.fonts.ready;
-    await loadImages(card);
+    const images = Array.from(card.querySelectorAll("img"));
+    if (quick) {
+        // Decode what's already downloaded; leave the rest alone (a lazy
+        // image that hasn't started loading is skipped by the library's own
+        // "wait for images" step, so it can't hold the snapshot up).
+        await Promise.all(
+            images.filter((img) => img.complete).map((img) =>
+                img.decode().catch(() => {}),
+            ),
+        );
+    } else {
+        await loadImages(images);
+    }
+    const missing = new Set(images.filter((img) => !img.complete));
     // Loaded on demand, so the library never ships to visitors who don't get
     // the effect (reduced motion, no WebGL) — it isn't in the page bundle.
-    const { domToCanvas } = await import("modern-screenshot");
+    const { createContext, domToCanvas } = await import("modern-screenshot");
 
     const started = performance.now();
     // getBoundingClientRect, not offsetWidth: it keeps fractional pixels,
@@ -68,11 +91,41 @@ export async function snapshotCard(
         maxTextureSize / width,
         Math.sqrt(MAX_CANVAS_PIXELS / (width * height)),
     );
-    const canvas = await domToCanvas(card, {
+    // Before anything else, the library waits for every <img> inside the
+    // card to finish loading — including the ones we're about to leave out,
+    // which (being lazy and far away) may not load for a long time. Its only
+    // knob for that wait is `timeout`, which ALSO limits every later step. So
+    // the context is created with a tiny timeout (that initial wait gives up
+    // on the skipped images almost at once), then the timeout is raised
+    // before the real work — fetching fonts, drawing the SVG — begins.
+    const context = await createContext(card, {
         width,
         height,
         scale,
-        timeout: 15000,
+        timeout: quick ? 50 : 15000,
+        drawImageInterval: SAFARI_REDRAW_INTERVAL,
+        // Leaving an unloaded <img> out doesn't shift the layout: every image
+        // sits in a wrapper whose aspect-ratio fixes its size.
+        filter: (node) =>
+            !(node instanceof HTMLImageElement && missing.has(node)),
+        // Every snapshot after the first is taken while the effect is
+        // running, i.e. while the engine's mask is hiding the lower part of
+        // the live card. The library copies computed styles, mask included,
+        // so without this the picture itself would come out transparent
+        // below the cut. These override the cloned card only, not the page.
+        style: { maskImage: "none", webkitMaskImage: "none" },
+        // Free the library's scratch resources as soon as the SVG is built,
+        // same as a plain domToCanvas(card, options) call would.
+        autoDestruct: true,
     });
-    return { canvas, width, height, scale, ms: performance.now() - started };
+    context.timeout = 15000;
+    const canvas = await domToCanvas(context);
+    return {
+        canvas,
+        width,
+        height,
+        scale,
+        ms: performance.now() - started,
+        complete: missing.size === 0,
+    };
 }

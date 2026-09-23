@@ -9,10 +9,19 @@
 //     kept on the GPU as a texture and sampled at "card y = viewport y +
 //     how far the card has scrolled".
 //   • Upstream's canvas is an opaque replacement for its content. Here the
-//     live DOM stays visible wherever the card is assembled: the base pass
-//     draws TRANSPARENT there and only paints the card's own white over rows
-//     that are still dust. So the real text/links are what you see at rest;
-//     the snapshot is only ever seen as flying grains.
+//     WHOLE card dissolves — its white surface and dashed border too — so
+//     what's behind the card (the dimmed home page) shows through the dust.
+//     Two layers share the work, split at a "cut" line: the first row, from
+//     the top, that hasn't fully landed yet.
+//       – Above the cut: the real, live card, untouched. The canvas draws
+//         nothing there.
+//       – From the cut down: the live card is hidden with a CSS mask, and the
+//         canvas draws it instead — landed cells straight from the snapshot,
+//         unlanded ones as flying grains over a transparent background.
+//     Once every row has landed the mask is removed entirely, so at rest
+//     you're looking at the real DOM, exactly as without the effect.
+//   • Upstream's grains stay inside its box. Here the canvas spans the whole
+//     viewport, so grains near the card's edges can drift out over the page.
 //   • Upstream scrolls an inner element. Here the scroll container is the
 //     overlay dialog, so scroll is read from it and converted to card space.
 //
@@ -113,53 +122,76 @@ void main () {
   gl_Position = vec4(aPos, 0.0, 1.0);
 }`;
 
-// The "cover" pass, one fragment per screen pixel. For each pixel it works
-// out which grain cell it belongs to and whether that grain has finished
-// landing. Landed → fully transparent, so the live DOM underneath shows.
-// Not landed → the card's own background colour, hiding the live DOM so the
-// flying grain (drawn in the next pass) is the only thing visible there.
-// Output is PREMULTIPLIED alpha (colour already multiplied by opacity), which
-// is what a default WebGL canvas hands the browser's compositor.
+// Reads the snapshot at a position in card space (CSS px from the card's
+// top-left). The snapshot lives in a TEXTURE ARRAY — a stack of equally tall
+// slices ("layers") — because a ~3400px-tall card at 2x can exceed the
+// tallest single texture some GPUs allow. This turns a card position into
+// (layer, position-within-layer). Usually there's just one layer.
+const SAMPLE = `
+uniform sampler2DArray uContent;
+uniform vec2 uCard;
+uniform float uTileH;
+uniform float uLayers;
+vec4 sampleCard (vec2 cardPx, float lod) {
+  cardPx = clamp(cardPx, vec2(0.0), uCard - 0.001);
+  float layer = min(floor(cardPx.y / uTileH), uLayers - 1.0);
+  vec2 uv = vec2(cardPx.x / uCard.x, (cardPx.y - layer * uTileH) / uTileH);
+  return textureLod(uContent, vec3(uv, layer), lod);
+}`;
+
+// The base pass, one fragment per screen pixel. Above the cut (and outside
+// the card) it draws nothing — the live card, or the page, shows through.
+// From the cut down, the live card is masked away, so this pass stands in
+// for it: a cell whose grain has landed shows the snapshot's pixel; a cell
+// still in flight is left transparent, and its grain is drawn by the next
+// pass. Output is PREMULTIPLIED alpha (colour already multiplied by
+// opacity), which is what a default WebGL canvas hands the compositor.
 const BASE_FRAG = `#version 300 es
 precision highp float;
+precision highp sampler2DArray;
 in vec2 vUv;
 out vec4 outColor;
 uniform sampler2D uRowTex;
 uniform vec2 uRes;
+uniform float uCardX;
 uniform float uDensity;
 uniform float uRowCount;
 uniform float uStagger;
 uniform float uScroll;
 uniform float uWinStart;
-uniform float uCardH;
-uniform vec3 uBg;
+uniform float uCut;
+${SAMPLE}
 ${HASH}
 void main () {
   vec2 px = vec2(vUv.x, 1.0 - vUv.y) * uRes;
-  float cardY = px.y + uScroll;
-  if (cardY < 0.0 || cardY >= uCardH) {
+  vec2 cardPx = vec2(px.x - uCardX, px.y + uScroll);
+  if (cardPx.x < 0.0 || cardPx.x >= uCard.x
+      || cardPx.y < uCut || cardPx.y >= uCard.y) {
     outColor = vec4(0.0);
     return;
   }
-  vec2 cell = floor(vec2(px.x, cardY) / uDensity);
+  vec2 cell = floor(cardPx / uDensity);
   float h1 = hash(cell);
   float d = h1 * uStagger;
   int row = int(clamp(cell.y - uWinStart, 0.0, uRowCount - 1.0));
   float p = texelFetch(uRowTex, ivec2(row, 0), 0).r;
   float t = clamp((p - d) / max(1.0 - d, 1e-3), 0.0, 1.0);
   float landed = step(0.9995, t);
-  outColor = vec4(uBg, 1.0) * (1.0 - landed);
+  vec4 tex = sampleCard(cardPx, 0.0);
+  outColor = vec4(tex.rgb * tex.a, tex.a) * landed;
 }`;
 
-// One point per grain cell in the visible window (upstream, unchanged apart
-// from dropping its scrollbar-width clamp — the canvas here is exactly the
-// card's width). Works out where the grain is on its flight between its
+// One point per grain cell in the visible window (upstream, apart from the
+// card sitting at uCardX inside a viewport-wide canvas, where upstream's box
+// started at x = 0). Works out where the grain is on its flight between its
 // scattered position and its home cell.
 const POINT_VERT = `#version 300 es
 precision highp float;
 uniform sampler2D uRowTex;
 uniform vec2 uRes;
 uniform vec2 uGrid;
+uniform float uCardX;
+uniform float uCardW;
 uniform float uDensity;
 uniform float uStagger;
 uniform float uSpread;
@@ -189,7 +221,7 @@ void main () {
   float h4 = hash(cell + vec2(8.4, 4.2));
   float d = h1 * uStagger;
   vec2 home = vec2(
-    (cell.x + 0.5) * uDensity,
+    (cell.x + 0.5) * uDensity + uCardX,
     (cell.y + 0.5) * uDensity - uScroll
   );
   int row = int(clamp(local.y, 0.0, uGrid.y - 1.0));
@@ -197,7 +229,7 @@ void main () {
   float t = clamp((p - d) / max(1.0 - d, 1e-3), 0.0, 1.0);
   float e = 1.0 - pow(1.0 - t, 3.0);
   float vis = (1.0 - step(0.9995, t))
-    * step(home.x, uRes.x)
+    * step(home.x - uCardX, uCardW)
     * step(home.y, uRes.y)
     * step(-uDensity, home.y);
   if (vis < 0.5) {
@@ -243,18 +275,12 @@ void main () {
   gl_PointSize = max(sizeCss * uDpr, 1.0);
 }`;
 
-// Colours each grain from the snapshot at its HOME position. The snapshot
-// lives in a TEXTURE ARRAY — a stack of equally tall slices ("layers") —
-// because a ~3400px-tall card at 2x can exceed the tallest single texture
-// some GPUs allow. sampleCard() turns a card-space position into
-// (layer, position-within-layer). Usually there's just one layer.
+// Colours each grain from the snapshot at its HOME position — including the
+// card's white surface, so the card itself turns to sand, not just its text.
 const POINT_FRAG = `#version 300 es
 precision highp float;
 precision highp sampler2DArray;
-uniform sampler2DArray uContent;
-uniform vec2 uCard;
-uniform float uTileH;
-uniform float uLayers;
+uniform float uCardX;
 uniform float uScroll;
 in vec2 vCenter;
 in float vSize;
@@ -262,15 +288,10 @@ in float vAlpha;
 in float vLod;
 in float vMerge;
 out vec4 outColor;
-vec4 sampleCard (vec2 cardPx, float lod) {
-  cardPx = clamp(cardPx, vec2(0.0), uCard - 0.001);
-  float layer = min(floor(cardPx.y / uTileH), uLayers - 1.0);
-  vec2 uv = vec2(cardPx.x / uCard.x, (cardPx.y - layer * uTileH) / uTileH);
-  return textureLod(uContent, vec3(uv, layer), lod);
-}
+${SAMPLE}
 void main () {
   vec2 o = gl_PointCoord - 0.5;
-  vec4 tex = sampleCard(vCenter + o * vSize + vec2(0.0, uScroll), vLod);
+  vec4 tex = sampleCard(vCenter + o * vSize + vec2(-uCardX, uScroll), vLod);
   float circle = 1.0 - smoothstep(0.25, 0.5, length(o));
   float mask = mix(circle, 1.0, vMerge);
   float a = vAlpha * mask * tex.a;
@@ -379,52 +400,42 @@ export function createParticleScroll(
     let rowsAnimating = false;
     let rowsAssembled = false;
 
-    // The card's own background colour, as 0–1 RGB. The base pass paints it
-    // over not-yet-landed rows so they read as the card's white, not a hole.
-    let bg: [number, number, number] = [1, 1, 1];
-    function syncBgColor() {
-        const probe = document.createElement("canvas");
-        probe.width = probe.height = 1;
-        const ctx = probe.getContext("2d", { willReadFrequently: true });
-        if (!ctx) return;
-        let el: Element | null = card;
-        while (el) {
-            const css = getComputedStyle(el).backgroundColor;
-            if (css && css !== "transparent") {
-                ctx.fillStyle = css;
-                ctx.fillRect(0, 0, 1, 1);
-                const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
-                if (a > 0) {
-                    bg = [r / 255, g / 255, b / 255];
-                    return;
-                }
-            }
-            // The wrapper we're given may be transparent; its first child
-            // (the <article>) is what carries bg-surface.
-            el = el === card ? card.firstElementChild : null;
-        }
+    // Hides the live card from `cut` (CSS px from the card's top) downward,
+    // or un-hides it entirely when cut is null. A mask, not clip-path, on
+    // purpose: a clip-path also stops clicks from reaching the clipped-away
+    // part, so a click on a dissolved area would fall through to the
+    // backdrop and CLOSE the overlay. A mask is purely visual — hidden text
+    // and links stay selectable and clickable. The mask moves with the card
+    // when it scrolls, so rows scrolling in from below arrive already hidden
+    // even before the next frame is drawn. Only written when it changes.
+    let appliedCut: number | null = null;
+    function applyMask(cut: number | null) {
+        if (cut === appliedCut) return;
+        appliedCut = cut;
+        const value =
+            cut === null
+                ? ""
+                : `linear-gradient(to bottom, #000 ${cut}px, transparent ${cut}px)`;
+        card.style.setProperty("mask-image", value);
+        card.style.setProperty("-webkit-mask-image", value);
     }
 
     // Live geometry, re-read every frame. `rect` is the card's box on screen
     // (getBoundingClientRect includes the slide-up transform, so the dust
     // travels with the card while it animates in/out).
     let rect = card.getBoundingClientRect();
-    let canvasLeft = NaN;
-    let canvasWidth = NaN;
 
-    // The canvas is `position: fixed` and full viewport height (CSS), but its
-    // left/width follow the card, so it never extends over the dimmed page
-    // beside the card at >=900px. Its drawing buffer is sized at up to 2x
-    // device pixels, matching the snapshot.
+    // The canvas is `position: fixed` and covers the dialog's whole visible
+    // area (clientWidth leaves out a classic scrollbar), so grains can drift
+    // past the card's edges. Its drawing buffer is sized at up to 2x device
+    // pixels, matching the snapshot.
     function syncCanvasBox() {
-        if (rect.left !== canvasLeft || rect.width !== canvasWidth) {
-            canvasLeft = rect.left;
-            canvasWidth = rect.width;
-            output.style.left = `${rect.left}px`;
-            output.style.width = `${rect.width}px`;
+        const cssWidth = scroller.clientWidth;
+        if (output.style.width !== `${cssWidth}px`) {
+            output.style.width = `${cssWidth}px`;
         }
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const width = Math.max(1, Math.round(rect.width * dpr));
+        const width = Math.max(1, Math.round(cssWidth * dpr));
         const height = Math.max(1, Math.round(output.clientHeight * dpr));
         if (output.width !== width || output.height !== height) {
             output.width = width;
@@ -454,7 +465,6 @@ export function createParticleScroll(
 
     let time = 0;
     let introDone = false;
-    let introWait = 0;
     let introReady = false;
 
     function rowTargetFor(cardRowY: number) {
@@ -536,7 +546,6 @@ export function createParticleScroll(
     }
 
     function clear() {
-        gl!.disable(gl!.SCISSOR_TEST);
         gl!.viewport(0, 0, output.width, output.height);
         gl!.clearColor(0, 0, 0, 0);
         gl!.clear(gl!.COLOR_BUFFER_BIT);
@@ -545,11 +554,17 @@ export function createParticleScroll(
     function render(dt: number) {
         syncCanvasBox();
         clear();
-        if (!snapshotMatches() || !contentTexture) return;
+        if (!snapshotMatches() || !contentTexture) {
+            applyMask(null);
+            return;
+        }
 
-        const w = Math.max(rect.width, 1);
+        // Canvas size (the viewport) vs card size: the card decides how many
+        // grains there are, the canvas decides where they can fly.
+        const cw = Math.max(output.clientWidth, 1);
         const h = Math.max(output.clientHeight, 1);
-        const dpr = output.width / w;
+        const dpr = output.width / cw;
+        const w = Math.max(rect.width, 1);
         const density = Math.max(
             Math.max(config.density, 1),
             Math.sqrt((w * h) / 800000),
@@ -563,19 +578,19 @@ export function createParticleScroll(
         const stagger = Math.min(Math.max(config.stagger, 0), 0.95);
         updateRows(dt, density, winStart, winLen);
 
-        // Clip every draw to the part of the card that's on screen, so grains
-        // flying past the card's top/bottom edge never land on the backdrop.
-        // (Scissor coordinates count from the canvas's BOTTOM edge.)
-        const top = Math.max(rect.top, 0);
-        const bottom = Math.min(rect.bottom, h);
-        if (bottom <= top) return;
-        gl!.enable(gl!.SCISSOR_TEST);
-        gl!.scissor(
-            0,
-            Math.round((h - bottom) * dpr),
-            output.width,
-            Math.round((bottom - top) * dpr),
-        );
+        // The cut: the first row (from the card's top) that hasn't fully
+        // landed. A row whose progress is ≥ 0.9999 has every grain home —
+        // even the latest-starting one (see `t` in the shaders).
+        let cutRow = -1;
+        for (let i = 0; i < rowProgress.length; i++) {
+            if (rowProgress[i] < 0.9999) {
+                cutRow = i;
+                break;
+            }
+        }
+        const cut = cutRow < 0 ? null : cutRow * density;
+        applyMask(cut);
+        if (cut === null) return;
 
         gl!.activeTexture(gl!.TEXTURE1);
         gl!.bindTexture(gl!.TEXTURE_2D, rowTex);
@@ -586,14 +601,18 @@ export function createParticleScroll(
         gl!.useProgram(base.program);
         gl!.bindVertexArray(quadVao);
         gl!.uniform1i(base.uniforms.uRowTex, 1);
-        gl!.uniform2f(base.uniforms.uRes, w, h);
+        gl!.uniform1i(base.uniforms.uContent, 0);
+        gl!.uniform2f(base.uniforms.uRes, cw, h);
+        gl!.uniform1f(base.uniforms.uCardX, rect.left);
         gl!.uniform1f(base.uniforms.uDensity, density);
         gl!.uniform1f(base.uniforms.uRowCount, winLen);
         gl!.uniform1f(base.uniforms.uStagger, stagger);
         gl!.uniform1f(base.uniforms.uScroll, scroll);
         gl!.uniform1f(base.uniforms.uWinStart, winStart);
-        gl!.uniform1f(base.uniforms.uCardH, snap!.height);
-        gl!.uniform3f(base.uniforms.uBg, bg[0], bg[1], bg[2]);
+        gl!.uniform1f(base.uniforms.uCut, cut);
+        gl!.uniform2f(base.uniforms.uCard, snap!.width, snap!.height);
+        gl!.uniform1f(base.uniforms.uTileH, snap!.tileH);
+        gl!.uniform1f(base.uniforms.uLayers, snap!.layers);
         gl!.drawArrays(gl!.TRIANGLE_STRIP, 0, 4);
 
         if (rowsAssembled) return;
@@ -605,8 +624,10 @@ export function createParticleScroll(
         gl!.bindVertexArray(pointVao);
         gl!.uniform1i(points.uniforms.uRowTex, 1);
         gl!.uniform1i(points.uniforms.uContent, 0);
-        gl!.uniform2f(points.uniforms.uRes, w, h);
+        gl!.uniform2f(points.uniforms.uRes, cw, h);
         gl!.uniform2f(points.uniforms.uGrid, gridX, winLen);
+        gl!.uniform1f(points.uniforms.uCardX, rect.left);
+        gl!.uniform1f(points.uniforms.uCardW, w);
         gl!.uniform1f(points.uniforms.uDensity, density);
         gl!.uniform1f(points.uniforms.uStagger, stagger);
         gl!.uniform1f(points.uniforms.uSpread, Math.max(config.spread, 0));
@@ -658,17 +679,18 @@ export function createParticleScroll(
         lag *= Math.exp(-delta / 0.22);
         lag = Math.min(Math.max(lag, -400), 400);
         if (Math.abs(lag) < 0.1) lag = 0;
-        // The intro: the card is shown whole first, then — a second after
-        // the snapshot is ready — rows below the formation line blow away.
-        if (!introDone && introReady) {
-            introWait += delta;
-            if (introWait >= 1) introDone = true;
-        }
         const tau = config.smoothing;
         const k = tau <= 0 ? 1 : 1 - Math.exp(-delta / Math.max(tau, 1e-4));
         scrollSmooth += (scrollTop - scrollSmooth) * k;
         if (Math.abs(scrollTop - scrollSmooth) < 0.5) scrollSmooth = scrollTop;
         render(delta);
+        // The intro: the first frame after the snapshot arrives draws every
+        // row as landed (rowTargetFor returns 1 until introDone), THEN the
+        // effect arms — so rows below the formation line visibly blow away
+        // instead of popping straight to dust. Upstream waited a full second
+        // here; this arms right away, since the snapshot itself already
+        // arrives after the card has started opening.
+        if (introReady) introDone = true;
         // Stop the loop once nothing can change on screen: no snapshot to
         // draw (or a stale one), or everything landed and at rest. Scattered
         // dust keeps it running — the grains idly drift.
@@ -829,7 +851,6 @@ export function createParticleScroll(
         maxTextureSize,
         setSnapshot(snapshot) {
             uploadSnapshot(snapshot);
-            syncBgColor();
             introReady = true;
             start();
         },
@@ -847,6 +868,7 @@ export function createParticleScroll(
         wake: start,
         destroy() {
             destroyed = true;
+            applyMask(null);
             cancelAnimationFrame(raf);
             scroller.removeEventListener("scroll", onScroll);
             output.removeEventListener("webglcontextlost", onLost);

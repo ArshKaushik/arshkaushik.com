@@ -13,16 +13,19 @@ import { snapshotCard } from "./particle-scroll/snapshot";
 // near the bottom of the screen the card is dust; scrolling it up past the
 // line makes the dust fly home and settle into the page.
 //
-// The live card DOM is never replaced or moved. This component only adds one
-// decorative <canvas> on top of it (aria-hidden, pointer-events: none, so
-// clicks, text selection, wheel scrolling and screen readers all go straight
-// through to the real card). Where the card is assembled the canvas is
-// transparent; it only paints over rows that are still dust.
+// The whole card dissolves — surface and border included — so the page
+// behind it shows through the dust. The live card DOM is never replaced or
+// moved: this component adds one decorative, viewport-sized <canvas> on top
+// (aria-hidden, pointer-events: none), and the engine hides the part of the
+// real card that's dust with a CSS mask, which is visual only. So clicks,
+// text selection, wheel scrolling and screen readers all still reach the
+// real card. Once everything has landed the mask comes off (engine.ts).
 //
 // The steps:
 //   1. Create the WebGL engine (no WebGL2 → render nothing, plain card).
-//   2. Take a snapshot of the card (snapshot.ts) once the open animation has
-//      played, and hand it to the engine. Until then: plain card.
+//   2. Take a snapshot of the card (snapshot.ts) straight away — a quick one,
+//      then a full one if some images weren't downloaded yet — and hand it
+//      to the engine. Until the first arrives: plain card.
 //   3. If the card changes SIZE (crossing a breakpoint), the engine switches
 //      itself off at once and we take a new snapshot after things settle.
 // Any failure along the way just unmounts the canvas.
@@ -38,12 +41,11 @@ function subscribeReducedMotion(onChange: () => void) {
     return () => query.removeEventListener("change", onChange);
 }
 
-// Wait out the card's 520ms slide-up before snapshotting: cloning the card
-// is heavy main-thread work, and there's nothing to reveal until the user
-// starts scrolling anyway.
-const FIRST_SNAPSHOT_DELAY = 600;
 // After a resize, wait for it to stop before re-snapshotting (a window drag
-// fires dozens of resizes).
+// fires dozens of resizes). The FIRST snapshot doesn't wait at all: it runs
+// while the card is still sliding up. That slide is a CSS transition the
+// browser runs off the main thread, so the snapshot's JS work doesn't stall
+// it — and the effect is ready by the time the reader can scroll.
 const RESNAPSHOT_DEBOUNCE = 300;
 
 export default function ParticleScrollReveal({
@@ -104,21 +106,36 @@ export default function ParticleScrollReveal({
             return `${r.width.toFixed(1)}x${r.height.toFixed(1)}`;
         };
 
+        // Two passes. A QUICK snapshot first, which skips any image that
+        // hasn't downloaded yet (usually the far-down point-card images), so
+        // the effect can start right away. If anything was skipped, a FULL
+        // snapshot follows once every image is in, and quietly replaces the
+        // first — the skipped images are far below the fold, so by the time
+        // the reader gets there, their grains are the real thing.
         const take = async () => {
             const current = ++generation;
             requestedSize = sizeKey();
+            const stale = () => cancelled || current !== generation;
             try {
-                const snapshot = await snapshotCard(card, engine.maxTextureSize);
-                if (cancelled || current !== generation) {
-                    snapshot.canvas.width = snapshot.canvas.height = 0;
-                    return;
-                }
-                if (process.env.NODE_ENV !== "production") {
-                    console.debug(
-                        `[particle-scroll] snapshot ${Math.round(snapshot.ms)}ms at ${snapshot.scale.toFixed(2)}x (${snapshot.width.toFixed(0)}x${snapshot.height.toFixed(0)} CSS px)`,
+                for (const quick of [true, false]) {
+                    const snapshot = await snapshotCard(
+                        card,
+                        engine.maxTextureSize,
+                        { quick },
                     );
+                    if (stale()) {
+                        snapshot.canvas.width = snapshot.canvas.height = 0;
+                        return;
+                    }
+                    if (process.env.NODE_ENV !== "production") {
+                        console.debug(
+                            `[particle-scroll] ${quick ? "quick" : "full"} snapshot ${Math.round(snapshot.ms)}ms at ${snapshot.scale.toFixed(2)}x (${snapshot.width.toFixed(0)}x${snapshot.height.toFixed(0)} CSS px)${snapshot.complete ? "" : ", some images skipped"}`,
+                        );
+                    }
+                    const complete = snapshot.complete;
+                    engine.setSnapshot(snapshot);
+                    if (complete) break;
                 }
-                engine.setSnapshot(snapshot);
             } catch (error) {
                 if (cancelled) return;
                 console.warn("[particle-scroll] disabled:", error);
@@ -131,7 +148,7 @@ export default function ParticleScrollReveal({
             timer = window.setTimeout(take, delay);
         };
         requestedSize = sizeKey();
-        schedule(FIRST_SNAPSHOT_DELAY);
+        take();
 
         const resizeObserver = new ResizeObserver(() => {
             if (sizeKey() !== requestedSize) {
@@ -159,8 +176,8 @@ export default function ParticleScrollReveal({
     }, [open]);
 
     if (!active) return null;
-    // `fixed` + full viewport height; the engine sets left/width to match the
-    // card's box every frame. w-0 until then so it can't flash over anything.
+    // `fixed` + full viewport height; the engine sets its width to the
+    // dialog's visible width. w-0 until then so it can't flash over anything.
     return (
         <canvas
             ref={canvasRef}
