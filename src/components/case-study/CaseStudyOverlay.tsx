@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { CaseStudy } from "@/lib/case-studies";
 import CaseStudyDetail from "./CaseStudyDetail";
 import BackNav from "./BackNav";
+import ParticleScrollReveal from "@/components/effects/ParticleScrollReveal";
 
 // The dimmed overlay that presents a case study on top of the home page.
 // Two callers, same presentation:
@@ -274,6 +275,16 @@ export default function CaseStudyOverlay({
                     <CaseStudyDetail study={study} />
                 </div>
             </div>
+            {/* The sand reveal's canvas. A sibling of the sliding wrapper
+                above, not a child of it: the wrapper's translate transform
+                would make a `position: fixed` canvas stick to the card
+                instead of the screen. Rendered after the card so it paints
+                on top of it, and before BackNav so the pill stays above. */}
+            <ParticleScrollReveal
+                scrollerRef={dialogRef}
+                cardRef={cardRef}
+                open={open}
+            />
             {closeHref ? (
                 <BackNav href={closeHref} open={open} />
             ) : (

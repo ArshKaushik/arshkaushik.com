@@ -1,0 +1,867 @@
+// WebGL2 "particle sand" scroll reveal, adapted from canvas-ui's ParticleScroll
+// (https://github.com/DavidHDev/canvas-ui/tree/main/src/lib/ParticleScroll).
+// The shaders and the per-row progress logic are upstream's; what changed is
+// WHERE the pixels come from and WHAT the canvas covers:
+//
+//   • Upstream captures its content live, every frame, with the experimental
+//     HTML-in-Canvas API (drawElementImage) — Chrome-behind-a-flag only. Here
+//     the content is a ONE-TIME snapshot of the whole card (see snapshot.ts),
+//     kept on the GPU as a texture and sampled at "card y = viewport y +
+//     how far the card has scrolled".
+//   • Upstream's canvas is an opaque replacement for its content. Here the
+//     live DOM stays visible wherever the card is assembled: the base pass
+//     draws TRANSPARENT there and only paints the card's own white over rows
+//     that are still dust. So the real text/links are what you see at rest;
+//     the snapshot is only ever seen as flying grains.
+//   • Upstream scrolls an inner element. Here the scroll container is the
+//     overlay dialog, so scroll is read from it and converted to card space.
+//
+// Upstream license (MIT + Commons Clause), required notice:
+//   Copyright (c) 2026 David Haz. Permission is hereby granted, free of
+//   charge, to any person obtaining a copy of this software and associated
+//   documentation files (the "Software"), to deal in the Software without
+//   restriction, including without limitation the rights to use, copy,
+//   modify, merge, publish, and distribute the Software as part of an
+//   application, website, or product, subject to the following conditions:
+//   The above copyright notice and this permission notice shall be included
+//   in all copies or substantial portions of the Software. Commons Clause:
+//   you may not sell, sublicense, or redistribute the components themselves.
+//   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+
+export interface ParticleScrollOptions {
+    /** Viewport fraction of the formation line. Content assembles as it scrolls up past this line and dissolves back below it. */
+    point?: number;
+    /** Height in CSS pixels of the transition band where particles progressively reassemble. */
+    band?: number;
+    /** Grain spacing in CSS pixels. Smaller values mean finer, denser sand. */
+    density?: number;
+    /** Size of fully scattered dust grains in CSS pixels. Grains grow to cover their cell as they land. */
+    size?: number;
+    /** Maximum distance in CSS pixels particles scatter from their home position. */
+    spread?: number;
+    /** Downward bias of the scattered cloud (-1 to 1), like sand settling. Negative values lift it. */
+    gravity?: number;
+    /** Idle float speed of scattered particles (0 to 1). 0 freezes the cloud. */
+    drift?: number;
+    /** Sideways arc in CSS pixels particles take while flying home. */
+    swirl?: number;
+    /** Per-particle randomness of reassembly timing (0 to 1). */
+    stagger?: number;
+    /** Opacity of fully scattered particles (0 to 1). */
+    fade?: number;
+    /** Seconds a row of dust takes to condense into the page once the reveal reaches it. */
+    settle?: number;
+    /** Seconds the damped scroll takes to catch up with the real scroll. Higher feels more fluid. */
+    smoothing?: number;
+}
+
+export interface ParticleScrollElements {
+    /** The element that actually scrolls (the overlay dialog). */
+    scroller: HTMLElement;
+    /** The element that was snapshotted (the card). Its live rect positions everything. */
+    card: HTMLElement;
+    /** Canvas the effect renders into. Positioned `fixed` over the viewport. */
+    output: HTMLCanvasElement;
+}
+
+/** A rendered image of the card, plus the CSS size it was taken at. */
+export interface CardSnapshot {
+    canvas: HTMLCanvasElement;
+    width: number;
+    height: number;
+}
+
+export interface ParticleScrollInstance {
+    /** Largest texture edge this GPU accepts — the snapshot must fit its WIDTH in this. */
+    maxTextureSize: number;
+    /** Upload a new snapshot (the engine takes ownership and frees the canvas). */
+    setSnapshot: (snapshot: CardSnapshot) => void;
+    /** Update effect options live. */
+    setOptions: (options: ParticleScrollOptions) => void;
+    /** Restart the render loop, e.g. because the card is about to move. */
+    wake: () => void;
+    /** Stop the loop and release all GPU resources. */
+    destroy: () => void;
+}
+
+const DEFAULTS: Required<ParticleScrollOptions> = {
+    point: 0.68,
+    band: 420,
+    density: 2,
+    size: 1.25,
+    spread: 220,
+    gravity: 0.35,
+    drift: 0.7,
+    swirl: 60,
+    stagger: 0.7,
+    fade: 0.85,
+    settle: 1.2,
+    smoothing: 0.6,
+};
+
+const HASH = `
+float hash (vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}`;
+
+const QUAD_VERT = `#version 300 es
+precision highp float;
+layout(location = 0) in vec2 aPos;
+out vec2 vUv;
+void main () {
+  vUv = aPos * 0.5 + 0.5;
+  gl_Position = vec4(aPos, 0.0, 1.0);
+}`;
+
+// The "cover" pass, one fragment per screen pixel. For each pixel it works
+// out which grain cell it belongs to and whether that grain has finished
+// landing. Landed → fully transparent, so the live DOM underneath shows.
+// Not landed → the card's own background colour, hiding the live DOM so the
+// flying grain (drawn in the next pass) is the only thing visible there.
+// Output is PREMULTIPLIED alpha (colour already multiplied by opacity), which
+// is what a default WebGL canvas hands the browser's compositor.
+const BASE_FRAG = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 outColor;
+uniform sampler2D uRowTex;
+uniform vec2 uRes;
+uniform float uDensity;
+uniform float uRowCount;
+uniform float uStagger;
+uniform float uScroll;
+uniform float uWinStart;
+uniform float uCardH;
+uniform vec3 uBg;
+${HASH}
+void main () {
+  vec2 px = vec2(vUv.x, 1.0 - vUv.y) * uRes;
+  float cardY = px.y + uScroll;
+  if (cardY < 0.0 || cardY >= uCardH) {
+    outColor = vec4(0.0);
+    return;
+  }
+  vec2 cell = floor(vec2(px.x, cardY) / uDensity);
+  float h1 = hash(cell);
+  float d = h1 * uStagger;
+  int row = int(clamp(cell.y - uWinStart, 0.0, uRowCount - 1.0));
+  float p = texelFetch(uRowTex, ivec2(row, 0), 0).r;
+  float t = clamp((p - d) / max(1.0 - d, 1e-3), 0.0, 1.0);
+  float landed = step(0.9995, t);
+  outColor = vec4(uBg, 1.0) * (1.0 - landed);
+}`;
+
+// One point per grain cell in the visible window (upstream, unchanged apart
+// from dropping its scrollbar-width clamp — the canvas here is exactly the
+// card's width). Works out where the grain is on its flight between its
+// scattered position and its home cell.
+const POINT_VERT = `#version 300 es
+precision highp float;
+uniform sampler2D uRowTex;
+uniform vec2 uRes;
+uniform vec2 uGrid;
+uniform float uDensity;
+uniform float uStagger;
+uniform float uSpread;
+uniform float uGravity;
+uniform float uDrift;
+uniform float uSwirl;
+uniform float uTime;
+uniform float uFade;
+uniform float uSize;
+uniform float uDpr;
+uniform float uLag;
+uniform float uScroll;
+uniform float uWinStart;
+out vec2 vCenter;
+out float vSize;
+out float vAlpha;
+out float vLod;
+out float vMerge;
+${HASH}
+void main () {
+  float fid = float(gl_VertexID);
+  vec2 local = vec2(mod(fid, uGrid.x), floor(fid / uGrid.x));
+  vec2 cell = vec2(local.x, local.y + uWinStart);
+  float h1 = hash(cell);
+  float h2 = hash(cell + vec2(1.7, 9.1));
+  float h3 = hash(cell + vec2(5.5, 2.9));
+  float h4 = hash(cell + vec2(8.4, 4.2));
+  float d = h1 * uStagger;
+  vec2 home = vec2(
+    (cell.x + 0.5) * uDensity,
+    (cell.y + 0.5) * uDensity - uScroll
+  );
+  int row = int(clamp(local.y, 0.0, uGrid.y - 1.0));
+  float p = texelFetch(uRowTex, ivec2(row, 0), 0).r;
+  float t = clamp((p - d) / max(1.0 - d, 1e-3), 0.0, 1.0);
+  float e = 1.0 - pow(1.0 - t, 3.0);
+  float vis = (1.0 - step(0.9995, t))
+    * step(home.x, uRes.x)
+    * step(home.y, uRes.y)
+    * step(-uDensity, home.y);
+  if (vis < 0.5) {
+    gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+    gl_PointSize = 0.0;
+    vCenter = vec2(0.0);
+    vSize = 0.0;
+    vAlpha = 0.0;
+    vLod = 0.0;
+    vMerge = 0.0;
+    return;
+  }
+  vec2 dir = normalize(vec2(h2 - 0.5, h3 - 0.5) + vec2(1e-4, 0.0));
+  float reach = 0.08 + 0.92 * pow(h4, 2.4);
+  vec2 off = dir * uSpread * reach;
+  off.y += uGravity * uSpread * (0.25 + 0.75 * h4);
+  vec2 scat = home + off;
+  vec2 pos = mix(scat, home, e);
+  vec2 perp = vec2(-dir.y, dir.x);
+  pos += perp * (h2 - 0.5) * 2.0 * uSwirl * sin(e * 3.14159);
+  float tt = uTime * uDrift;
+  float amp = (1.0 - e) * (uSpread * 0.05 + 2.5);
+  pos += vec2(
+    sin(tt * (4.0 + 5.0 * h2) + h3 * 40.0),
+    cos(tt * (3.5 + 5.5 * h3) + h2 * 40.0)
+  ) * amp;
+  pos.y += uLag * (1.0 - e) * (0.5 + 0.5 * h4);
+  pos += vec2(h4 - 0.5, h1 - 0.5) * uDensity * 3.0
+    * (1.0 - smoothstep(0.5, 0.85, t));
+  float grow = smoothstep(0.55, 1.0, e);
+  float sizeCss = mix(uSize, uDensity * 1.3, grow);
+  vCenter = home;
+  vSize = sizeCss;
+  vAlpha = mix(uFade, 1.0, e);
+  vLod = (1.0 - e) * 1.5;
+  vMerge = smoothstep(0.75, 0.97, t);
+  gl_Position = vec4(
+    pos.x / uRes.x * 2.0 - 1.0,
+    1.0 - pos.y / uRes.y * 2.0,
+    0.0,
+    1.0
+  );
+  gl_PointSize = max(sizeCss * uDpr, 1.0);
+}`;
+
+// Colours each grain from the snapshot at its HOME position. The snapshot
+// lives in a TEXTURE ARRAY — a stack of equally tall slices ("layers") —
+// because a ~3400px-tall card at 2x can exceed the tallest single texture
+// some GPUs allow. sampleCard() turns a card-space position into
+// (layer, position-within-layer). Usually there's just one layer.
+const POINT_FRAG = `#version 300 es
+precision highp float;
+precision highp sampler2DArray;
+uniform sampler2DArray uContent;
+uniform vec2 uCard;
+uniform float uTileH;
+uniform float uLayers;
+uniform float uScroll;
+in vec2 vCenter;
+in float vSize;
+in float vAlpha;
+in float vLod;
+in float vMerge;
+out vec4 outColor;
+vec4 sampleCard (vec2 cardPx, float lod) {
+  cardPx = clamp(cardPx, vec2(0.0), uCard - 0.001);
+  float layer = min(floor(cardPx.y / uTileH), uLayers - 1.0);
+  vec2 uv = vec2(cardPx.x / uCard.x, (cardPx.y - layer * uTileH) / uTileH);
+  return textureLod(uContent, vec3(uv, layer), lod);
+}
+void main () {
+  vec2 o = gl_PointCoord - 0.5;
+  vec4 tex = sampleCard(vCenter + o * vSize + vec2(0.0, uScroll), vLod);
+  float circle = 1.0 - smoothstep(0.25, 0.5, length(o));
+  float mask = mix(circle, 1.0, vMerge);
+  float a = vAlpha * mask * tex.a;
+  if (a < 0.01) discard;
+  outColor = vec4(tex.rgb * a, a);
+}`;
+
+export function createParticleScroll(
+    elements: ParticleScrollElements,
+    options: ParticleScrollOptions = {},
+    onContextLost?: () => void,
+): ParticleScrollInstance | null {
+    const config = { ...DEFAULTS, ...options };
+    const { scroller, card, output } = elements;
+
+    // premultipliedAlpha stays at its default (true) — see BASE_FRAG. The
+    // canvas is transparent wherever nothing is drawn.
+    const gl = output.getContext("webgl2", {
+        alpha: true,
+        depth: false,
+        stencil: false,
+        antialias: false,
+    });
+    if (!gl || gl.isContextLost()) return null;
+
+    function compile(type: number, text: string): WebGLShader {
+        const shader = gl!.createShader(type)!;
+        gl!.shaderSource(shader, text);
+        gl!.compileShader(shader);
+        if (!gl!.getShaderParameter(shader, gl!.COMPILE_STATUS)) {
+            throw new Error(
+                `ParticleScroll shader error: ${gl!.getShaderInfoLog(shader)}`,
+            );
+        }
+        return shader;
+    }
+
+    function link(vertText: string, fragText: string) {
+        const vert = compile(gl!.VERTEX_SHADER, vertText);
+        const frag = compile(gl!.FRAGMENT_SHADER, fragText);
+        const program = gl!.createProgram()!;
+        gl!.attachShader(program, vert);
+        gl!.attachShader(program, frag);
+        gl!.linkProgram(program);
+        if (!gl!.getProgramParameter(program, gl!.LINK_STATUS)) {
+            throw new Error(
+                `ParticleScroll link error: ${gl!.getProgramInfoLog(program)}`,
+            );
+        }
+        const uniforms: Record<string, WebGLUniformLocation> = {};
+        const count = gl!.getProgramParameter(program, gl!.ACTIVE_UNIFORMS);
+        for (let i = 0; i < count; i++) {
+            const info = gl!.getActiveUniform(program, i)!;
+            uniforms[info.name] = gl!.getUniformLocation(program, info.name)!;
+        }
+        return { program, vert, frag, uniforms };
+    }
+
+    // A shader that won't compile means no effect — the caller falls back to
+    // the plain card rather than showing a half-working canvas.
+    let base: ReturnType<typeof link>;
+    let points: ReturnType<typeof link>;
+    try {
+        base = link(QUAD_VERT, BASE_FRAG);
+        points = link(POINT_VERT, POINT_FRAG);
+    } catch (error) {
+        console.error(error);
+        return null;
+    }
+
+    const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
+    const maxLayers = gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS) as number;
+
+    const quadVao = gl.createVertexArray()!;
+    gl.bindVertexArray(quadVao);
+    const quad = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.bufferData(
+        gl.ARRAY_BUFFER,
+        new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+        gl.STATIC_DRAW,
+    );
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    // Points need no vertex data at all — the vertex shader derives each
+    // grain's cell from gl_VertexID — but WebGL still wants a VAO bound.
+    const pointVao = gl.createVertexArray()!;
+
+    // The snapshot texture. Created fresh per snapshot (texStorage3D makes an
+    // immutable, fixed-size texture), so it starts null.
+    let contentTexture: WebGLTexture | null = null;
+    // The snapshot's CSS size, and how tall one texture layer is in CSS px.
+    let snap: { width: number; height: number; tileH: number; layers: number } | null =
+        null;
+
+    // A 1-pixel-tall texture holding each visible row's progress (0 = dust,
+    // 1 = landed), re-uploaded every frame for the shaders to look up.
+    const rowTex = gl.createTexture()!;
+    gl.bindTexture(gl.TEXTURE_2D, rowTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    let rowProgress = new Float32Array(0);
+    let rowWindow = new Float32Array(0);
+    let rowsAnimating = false;
+    let rowsAssembled = false;
+
+    // The card's own background colour, as 0–1 RGB. The base pass paints it
+    // over not-yet-landed rows so they read as the card's white, not a hole.
+    let bg: [number, number, number] = [1, 1, 1];
+    function syncBgColor() {
+        const probe = document.createElement("canvas");
+        probe.width = probe.height = 1;
+        const ctx = probe.getContext("2d", { willReadFrequently: true });
+        if (!ctx) return;
+        let el: Element | null = card;
+        while (el) {
+            const css = getComputedStyle(el).backgroundColor;
+            if (css && css !== "transparent") {
+                ctx.fillStyle = css;
+                ctx.fillRect(0, 0, 1, 1);
+                const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+                if (a > 0) {
+                    bg = [r / 255, g / 255, b / 255];
+                    return;
+                }
+            }
+            // The wrapper we're given may be transparent; its first child
+            // (the <article>) is what carries bg-surface.
+            el = el === card ? card.firstElementChild : null;
+        }
+    }
+
+    // Live geometry, re-read every frame. `rect` is the card's box on screen
+    // (getBoundingClientRect includes the slide-up transform, so the dust
+    // travels with the card while it animates in/out).
+    let rect = card.getBoundingClientRect();
+    let canvasLeft = NaN;
+    let canvasWidth = NaN;
+
+    // The canvas is `position: fixed` and full viewport height (CSS), but its
+    // left/width follow the card, so it never extends over the dimmed page
+    // beside the card at >=900px. Its drawing buffer is sized at up to 2x
+    // device pixels, matching the snapshot.
+    function syncCanvasBox() {
+        if (rect.left !== canvasLeft || rect.width !== canvasWidth) {
+            canvasLeft = rect.left;
+            canvasWidth = rect.width;
+            output.style.left = `${rect.left}px`;
+            output.style.width = `${rect.width}px`;
+        }
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const width = Math.max(1, Math.round(rect.width * dpr));
+        const height = Math.max(1, Math.round(output.clientHeight * dpr));
+        if (output.width !== width || output.height !== height) {
+            output.width = width;
+            output.height = height;
+        }
+    }
+
+    // A snapshot only lines up with the live card if the card is still the
+    // size it was when captured. After a breakpoint change it isn't, so the
+    // effect switches itself off until the caller hands over a new one.
+    function snapshotMatches() {
+        return (
+            snap !== null &&
+            Math.abs(rect.width - snap.width) < 0.5 &&
+            Math.abs(rect.height - snap.height) < 0.5
+        );
+    }
+
+    // Scroll, in two coordinate spaces. The dialog's own scrollTop is what
+    // gets smoothed (so a transform on the card never feels "laggy"); the
+    // card-space scroll is then "dialog scroll minus where the card starts".
+    // cardOffset = the card's top inside the dialog's scrolled content.
+    let scrollSmooth = scroller.scrollTop;
+    function cardOffset() {
+        return scroller.scrollTop + rect.top;
+    }
+
+    let time = 0;
+    let introDone = false;
+    let introWait = 0;
+    let introReady = false;
+
+    function rowTargetFor(cardRowY: number) {
+        if (!introDone) return 1;
+        const h = Math.max(output.clientHeight, 1);
+        const band = Math.max(config.band, 1);
+        const max = scroller.scrollHeight - scroller.clientHeight;
+        let line = Math.min(Math.max(config.point, 0), 1) * h;
+        if (max <= 1) {
+            line = h + band;
+        } else {
+            // Near the end of the scroll, slide the formation line down past
+            // the bottom of the screen so every row is assembled when you
+            // reach the end — nothing is ever left as dust.
+            const endP = Math.min(
+                Math.max((scrollSmooth - (max - h * 0.5)) / (h * 0.5), 0),
+                1,
+            );
+            line += (h + band - line) * endP * endP;
+        }
+        const vy = cardRowY - (scrollSmooth - cardOffset());
+        return Math.min(Math.max((line + band - vy) / band, 0), 1);
+    }
+
+    function updateRows(
+        dt: number,
+        density: number,
+        winStart: number,
+        winLen: number,
+    ) {
+        const docRows = Math.max(1, Math.ceil(snap!.height / density));
+        if (rowProgress.length !== docRows) {
+            const next = new Float32Array(docRows);
+            for (let i = 0; i < docRows; i++) {
+                next[i] = rowTargetFor((i + 0.5) * density);
+            }
+            rowProgress = next;
+        }
+        if (rowWindow.length !== winLen) rowWindow = new Float32Array(winLen);
+        rowsAnimating = false;
+        let minP = 1;
+        const settle = Math.max(config.settle, 0.05);
+        for (let i = 0; i < docRows; i++) {
+            const target = rowTargetFor((i + 0.5) * density);
+            let p = rowProgress[i];
+            const inWin = i >= winStart - 4 && i < winStart + winLen + 4;
+            if (p !== target) {
+                if (!inWin) {
+                    p = target;
+                } else {
+                    if (p < target) p = Math.min(p + dt / settle, target);
+                    else p = Math.max(p - dt / (settle * 0.6), target);
+                    if (p !== target) rowsAnimating = true;
+                }
+                rowProgress[i] = p;
+            }
+            if (inWin && p < minP) minP = p;
+        }
+        rowsAssembled = minP >= 0.9995;
+        // Rows outside the card (above its top / below its bottom) count as
+        // landed, which the base pass renders as transparent.
+        rowWindow.fill(1);
+        const from = Math.min(Math.max(winStart, 0), docRows);
+        const to = Math.min(winStart + winLen, docRows);
+        if (to > from)
+            rowWindow.set(rowProgress.subarray(from, to), from - winStart);
+        gl!.bindTexture(gl!.TEXTURE_2D, rowTex);
+        gl!.texImage2D(
+            gl!.TEXTURE_2D,
+            0,
+            gl!.R32F,
+            winLen,
+            1,
+            0,
+            gl!.RED,
+            gl!.FLOAT,
+            rowWindow,
+        );
+    }
+
+    function clear() {
+        gl!.disable(gl!.SCISSOR_TEST);
+        gl!.viewport(0, 0, output.width, output.height);
+        gl!.clearColor(0, 0, 0, 0);
+        gl!.clear(gl!.COLOR_BUFFER_BIT);
+    }
+
+    function render(dt: number) {
+        syncCanvasBox();
+        clear();
+        if (!snapshotMatches() || !contentTexture) return;
+
+        const w = Math.max(rect.width, 1);
+        const h = Math.max(output.clientHeight, 1);
+        const dpr = output.width / w;
+        const density = Math.max(
+            Math.max(config.density, 1),
+            Math.sqrt((w * h) / 800000),
+        );
+        // Card-space scroll: how far the card's top is ABOVE the viewport top
+        // (negative while the card still starts lower down the screen).
+        const scroll = -rect.top;
+        const gridX = Math.ceil(w / density);
+        const winStart = Math.floor(scroll / density);
+        const winLen = Math.ceil(h / density) + 2;
+        const stagger = Math.min(Math.max(config.stagger, 0), 0.95);
+        updateRows(dt, density, winStart, winLen);
+
+        // Clip every draw to the part of the card that's on screen, so grains
+        // flying past the card's top/bottom edge never land on the backdrop.
+        // (Scissor coordinates count from the canvas's BOTTOM edge.)
+        const top = Math.max(rect.top, 0);
+        const bottom = Math.min(rect.bottom, h);
+        if (bottom <= top) return;
+        gl!.enable(gl!.SCISSOR_TEST);
+        gl!.scissor(
+            0,
+            Math.round((h - bottom) * dpr),
+            output.width,
+            Math.round((bottom - top) * dpr),
+        );
+
+        gl!.activeTexture(gl!.TEXTURE1);
+        gl!.bindTexture(gl!.TEXTURE_2D, rowTex);
+        gl!.activeTexture(gl!.TEXTURE0);
+        gl!.bindTexture(gl!.TEXTURE_2D_ARRAY, contentTexture);
+
+        gl!.disable(gl!.BLEND);
+        gl!.useProgram(base.program);
+        gl!.bindVertexArray(quadVao);
+        gl!.uniform1i(base.uniforms.uRowTex, 1);
+        gl!.uniform2f(base.uniforms.uRes, w, h);
+        gl!.uniform1f(base.uniforms.uDensity, density);
+        gl!.uniform1f(base.uniforms.uRowCount, winLen);
+        gl!.uniform1f(base.uniforms.uStagger, stagger);
+        gl!.uniform1f(base.uniforms.uScroll, scroll);
+        gl!.uniform1f(base.uniforms.uWinStart, winStart);
+        gl!.uniform1f(base.uniforms.uCardH, snap!.height);
+        gl!.uniform3f(base.uniforms.uBg, bg[0], bg[1], bg[2]);
+        gl!.drawArrays(gl!.TRIANGLE_STRIP, 0, 4);
+
+        if (rowsAssembled) return;
+        // Standard "paint over" for premultiplied colour: new grain on top,
+        // whatever was there showing through its transparent parts.
+        gl!.enable(gl!.BLEND);
+        gl!.blendFunc(gl!.ONE, gl!.ONE_MINUS_SRC_ALPHA);
+        gl!.useProgram(points.program);
+        gl!.bindVertexArray(pointVao);
+        gl!.uniform1i(points.uniforms.uRowTex, 1);
+        gl!.uniform1i(points.uniforms.uContent, 0);
+        gl!.uniform2f(points.uniforms.uRes, w, h);
+        gl!.uniform2f(points.uniforms.uGrid, gridX, winLen);
+        gl!.uniform1f(points.uniforms.uDensity, density);
+        gl!.uniform1f(points.uniforms.uStagger, stagger);
+        gl!.uniform1f(points.uniforms.uSpread, Math.max(config.spread, 0));
+        gl!.uniform1f(
+            points.uniforms.uGravity,
+            Math.min(Math.max(config.gravity, -1), 1),
+        );
+        gl!.uniform1f(points.uniforms.uDrift, Math.max(config.drift, 0));
+        gl!.uniform1f(points.uniforms.uSwirl, Math.max(config.swirl, 0));
+        gl!.uniform1f(points.uniforms.uTime, time);
+        gl!.uniform1f(
+            points.uniforms.uFade,
+            Math.min(Math.max(config.fade, 0), 1),
+        );
+        gl!.uniform1f(points.uniforms.uSize, Math.max(config.size, 0.5));
+        gl!.uniform1f(points.uniforms.uDpr, dpr);
+        gl!.uniform1f(points.uniforms.uLag, lag);
+        gl!.uniform1f(points.uniforms.uScroll, scroll);
+        gl!.uniform1f(points.uniforms.uWinStart, winStart);
+        gl!.uniform2f(points.uniforms.uCard, snap!.width, snap!.height);
+        gl!.uniform1f(points.uniforms.uTileH, snap!.tileH);
+        gl!.uniform1f(points.uniforms.uLayers, snap!.layers);
+        gl!.drawArrays(gl!.POINTS, 0, gridX * winLen);
+        gl!.bindVertexArray(quadVao);
+        gl!.disable(gl!.BLEND);
+    }
+
+    let raf = 0;
+    let lastTime = performance.now();
+    let destroyed = false;
+    let running = false;
+    let lag = 0;
+    let lastScrollTop = scroller.scrollTop;
+    let lastRectTop = rect.top;
+
+    function frame(now: number) {
+        if (destroyed) return;
+        const delta = Math.min((now - lastTime) / 1000, 1 / 30);
+        lastTime = now;
+        time += delta;
+        rect = card.getBoundingClientRect();
+        // The card moving on screen WITHOUT a scroll (the open/close slide)
+        // is also a reason to keep drawing, so the dust follows it.
+        const moving = Math.abs(rect.top - lastRectTop) > 0.01;
+        lastRectTop = rect.top;
+        const scrollTop = scroller.scrollTop;
+        lag += scrollTop - lastScrollTop;
+        lastScrollTop = scrollTop;
+        lag *= Math.exp(-delta / 0.22);
+        lag = Math.min(Math.max(lag, -400), 400);
+        if (Math.abs(lag) < 0.1) lag = 0;
+        // The intro: the card is shown whole first, then — a second after
+        // the snapshot is ready — rows below the formation line blow away.
+        if (!introDone && introReady) {
+            introWait += delta;
+            if (introWait >= 1) introDone = true;
+        }
+        const tau = config.smoothing;
+        const k = tau <= 0 ? 1 : 1 - Math.exp(-delta / Math.max(tau, 1e-4));
+        scrollSmooth += (scrollTop - scrollSmooth) * k;
+        if (Math.abs(scrollTop - scrollSmooth) < 0.5) scrollSmooth = scrollTop;
+        render(delta);
+        // Stop the loop once nothing can change on screen: no snapshot to
+        // draw (or a stale one), or everything landed and at rest. Scattered
+        // dust keeps it running — the grains idly drift.
+        const idle =
+            !snapshotMatches() ||
+            (scrollSmooth === scrollTop &&
+                !rowsAnimating &&
+                rowsAssembled &&
+                (introDone || !introReady) &&
+                lag === 0);
+        if (idle && !moving) {
+            running = false;
+            return;
+        }
+        raf = requestAnimationFrame(frame);
+    }
+
+    function start() {
+        if (destroyed || running) return;
+        running = true;
+        lastTime = performance.now();
+        raf = requestAnimationFrame(frame);
+    }
+
+    function uploadSnapshot(snapshot: CardSnapshot) {
+        const src = snapshot.canvas;
+        const width = src.width;
+        const height = src.height;
+        // Fewest equal-height layers that each fit under the GPU's limit.
+        const layers = Math.ceil(height / maxTextureSize);
+        if (width > maxTextureSize || layers > maxLayers) {
+            throw new Error("ParticleScroll: snapshot too large for this GPU");
+        }
+        const tileHpx = Math.ceil(height / layers);
+        const levels = Math.floor(Math.log2(Math.max(width, tileHpx))) + 1;
+
+        const texture = gl!.createTexture()!;
+        gl!.bindTexture(gl!.TEXTURE_2D_ARRAY, texture);
+        gl!.texStorage3D(
+            gl!.TEXTURE_2D_ARRAY,
+            levels,
+            gl!.RGBA8,
+            width,
+            tileHpx,
+            layers,
+        );
+        // One layer → upload the snapshot canvas directly. Several → copy
+        // each horizontal slice into a scratch canvas and upload that.
+        if (layers === 1) {
+            gl!.texSubImage3D(
+                gl!.TEXTURE_2D_ARRAY,
+                0,
+                0,
+                0,
+                0,
+                width,
+                height,
+                1,
+                gl!.RGBA,
+                gl!.UNSIGNED_BYTE,
+                src,
+            );
+        } else {
+            const slice = document.createElement("canvas");
+            slice.width = width;
+            slice.height = tileHpx;
+            const ctx = slice.getContext("2d")!;
+            for (let layer = 0; layer < layers; layer++) {
+                ctx.clearRect(0, 0, width, tileHpx);
+                ctx.drawImage(src, 0, -layer * tileHpx);
+                gl!.texSubImage3D(
+                    gl!.TEXTURE_2D_ARRAY,
+                    0,
+                    0,
+                    0,
+                    layer,
+                    width,
+                    tileHpx,
+                    1,
+                    gl!.RGBA,
+                    gl!.UNSIGNED_BYTE,
+                    slice,
+                );
+            }
+            slice.width = slice.height = 0;
+        }
+        // Mipmaps = pre-shrunk copies of the texture. Scattered grains sample
+        // a blurrier level (vLod), so a dust cloud shows averaged colour
+        // instead of flickering single pixels.
+        gl!.texParameteri(
+            gl!.TEXTURE_2D_ARRAY,
+            gl!.TEXTURE_MIN_FILTER,
+            gl!.LINEAR_MIPMAP_LINEAR,
+        );
+        gl!.texParameteri(
+            gl!.TEXTURE_2D_ARRAY,
+            gl!.TEXTURE_MAG_FILTER,
+            gl!.LINEAR,
+        );
+        gl!.texParameteri(
+            gl!.TEXTURE_2D_ARRAY,
+            gl!.TEXTURE_WRAP_S,
+            gl!.CLAMP_TO_EDGE,
+        );
+        gl!.texParameteri(
+            gl!.TEXTURE_2D_ARRAY,
+            gl!.TEXTURE_WRAP_T,
+            gl!.CLAMP_TO_EDGE,
+        );
+        gl!.generateMipmap(gl!.TEXTURE_2D_ARRAY);
+        // texSubImage3D from a canvas can fail silently (e.g. a canvas the
+        // browser considers tainted); treat any GL error as "no effect".
+        const err = gl!.getError();
+        if (err !== gl!.NO_ERROR) {
+            gl!.deleteTexture(texture);
+            throw new Error(`ParticleScroll: texture upload failed (${err})`);
+        }
+
+        if (contentTexture) gl!.deleteTexture(contentTexture);
+        contentTexture = texture;
+        snap = {
+            width: snapshot.width,
+            height: snapshot.height,
+            tileH: tileHpx * (snapshot.height / height),
+            layers,
+        };
+        // Free the CPU-side copy now that the GPU has it (Safari in
+        // particular only releases canvas memory when it's shrunk to 0).
+        src.width = src.height = 0;
+
+        if (process.env.NODE_ENV !== "production") {
+            // Rough GPU footprint: 4 bytes/pixel, +1/3 for the mipmap chain.
+            const mb = (width * tileHpx * layers * 4 * (4 / 3)) / 2 ** 20;
+            console.debug(
+                `[particle-scroll] texture ${width}x${height}px, ${layers} layer(s) of ${tileHpx}px (max ${maxTextureSize}), ~${mb.toFixed(1)} MB`,
+            );
+        }
+    }
+
+    function onScroll() {
+        start();
+    }
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+
+    const observer = new ResizeObserver(() => start());
+    observer.observe(output);
+    observer.observe(card);
+
+    function onLost(event: Event) {
+        event.preventDefault();
+        onContextLost?.();
+    }
+    output.addEventListener("webglcontextlost", onLost);
+
+    syncCanvasBox();
+
+    return {
+        maxTextureSize,
+        setSnapshot(snapshot) {
+            uploadSnapshot(snapshot);
+            syncBgColor();
+            introReady = true;
+            start();
+        },
+        setOptions(next) {
+            if (
+                !Object.entries(next).some(
+                    ([key, value]) =>
+                        config[key as keyof ParticleScrollOptions] !== value,
+                )
+            )
+                return;
+            Object.assign(config, next);
+            start();
+        },
+        wake: start,
+        destroy() {
+            destroyed = true;
+            cancelAnimationFrame(raf);
+            scroller.removeEventListener("scroll", onScroll);
+            output.removeEventListener("webglcontextlost", onLost);
+            observer.disconnect();
+            if (contentTexture) gl!.deleteTexture(contentTexture);
+            gl!.deleteTexture(rowTex);
+            gl!.deleteProgram(base.program);
+            gl!.deleteProgram(points.program);
+            gl!.deleteShader(base.vert);
+            gl!.deleteShader(base.frag);
+            gl!.deleteShader(points.vert);
+            gl!.deleteShader(points.frag);
+            gl!.deleteBuffer(quad);
+            gl!.deleteVertexArray(quadVao);
+            gl!.deleteVertexArray(pointVao);
+        },
+    };
+}
