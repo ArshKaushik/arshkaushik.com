@@ -57,7 +57,9 @@ src/
 │   ├── sections/                 #   Hero, CaseStudies, Footer, HomeContent (composes the three, reused by both routes above)
 │   ├── JsonLd.tsx                #   renders a JSON-LD <script>; the only <script> in the codebase
 │   ├── ui/                       #   NavLink, Stat, CaseStudyCard (small reusable pieces)
-│   └── case-study/               #   CaseStudyDetail (shared card + point cards), CaseStudyOverlay, BackNav
+│   ├── case-study/               #   CaseStudyDetail (shared card + point cards), CaseStudyOverlay, BackNav
+│   └── effects/particleScroll/   #   Sand reveal on the case-study card: particleScroll.tsx (React wrapper),
+│                                  #   snapshot.ts (card → image via modern-screenshot), engine.ts (WebGL2 sand)
 └── lib/
     ├── content.ts                # Page copy (identity, nav, hero) as data
     ├── og-fonts.ts               # Build-time Google-Fonts fetch for the per-study og:images (satori cannot read next/font files)
@@ -83,6 +85,7 @@ next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* ->
 - **Design tokens** — colours and fonts are defined once in `globals.css` (`@theme`) and referenced everywhere.
 - **Custom dashed hairlines** — the design's exact dash rhythm isn't achievable with `border-dashed`, so it's painted with a small gradient-based utility system. Walkthrough in [`learn/dashed-borders.md`](learn/dashed-borders.md).
 - **Spring hover interactions** — case-study cards and sidebar links animate with a spring easing sampled from Figma. Walkthrough in [`learn/case-study-card-hover.md`](learn/case-study-card-hover.md).
+- **Particle sand reveal** *(experimental)* — the case-study card dissolves into sand below a line near the bottom of the screen and settles back into place as it scrolls up. The card is snapshotted to an image (`modern-screenshot`) and animated with WebGL2, so it doesn't depend on Chrome's experimental HTML-in-Canvas API. It's a decorative layer on top: the real card stays underneath for clicks, text selection and screen readers, and it switches off under reduced motion or without WebGL2.
 - **Theme-aware favicons** — the browser tab icon switches with the OS/browser colour scheme.
 - **Optimized thumbnails** — one WebP export per case study, sized to serve both the home card and the detail hero. Full story, including a Vercel request-quota incident this solved, in [`learn/vercel-isr-quota.md`](learn/vercel-isr-quota.md).
 - **Social-share ready** — Open Graph/Twitter metadata, a designed static share card for the home page, and generated per-study share cards.
@@ -104,6 +107,8 @@ Built and verified as three separate phases against Figma references at each wid
 ## Status
 
 **Live at [arshkaushik.com](https://arshkaushik.com)** — deployed on Vercel (DNS via Cloudflare), fully responsive across all three breakpoint tiers, with Clarity + PostHog analytics running in production.
+
+**In progress on `v1.4-visualExperiments`:** the particle sand reveal on the case-study card. It isn't on `main` or the live site yet.
 
 ## Learn docs
 
