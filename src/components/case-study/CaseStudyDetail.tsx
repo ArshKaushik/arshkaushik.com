@@ -1,20 +1,5 @@
 import type { CaseStudy, CaseStudyPoint } from "@/lib/case-studies";
 
-// The case-study content card (Figma node 273-440). Presentational + reused by
-// BOTH the overlay (app/@modal) and the full page (app/work/[slug]).
-//
-// All long-form copy here carries `leading-relaxed` (line-height 1.625, vs the
-// inherited 1.5 default): these paragraphs run ~90+ characters per line at the
-// card's 736px measure, and the taller line box is what helps the eye track
-// back to the start of the next line at that length. Deliberately NOT applied
-// to CaseStudyCard's home-card description — its 600-900px layout math depends
-// on that text being exactly 2 × 21px lines (see the 50px-lift comment there).
-//
-// Renders a stored content string. The copy uses light inline markdown: the
-// design shows prose without emphasis, so `**bold**` / `*italic*` are stripped —
-// BUT markdown links `[text](url)` become real, new-tab anchors. That's why this
-// returns React nodes instead of a string: a bare string can't carry an <a>.
-// A field with no link just yields its stripped text, exactly as before.
 const renderInline = (s: string): React.ReactNode => {
     const stripEmphasis = (t: string) =>
         t.replace(/\*\*(.+?)\*\*/g, "$1").replace(/\*(.+?)\*/g, "$1");
@@ -161,7 +146,6 @@ export default function CaseStudyDetail({ study }: { study: CaseStudy }) {
     );
 }
 
-// A titled section: 20px heading + its body/children, 8px apart.
 function Section({
     heading,
     children,
@@ -177,7 +161,6 @@ function Section({
     );
 }
 
-// A "What I did" / "Impact" item: black lead-in span + grey body span, no bullet.
 function Point({ point }: { point: CaseStudyPoint }) {
     return (
         <p className="text-[14px] leading-relaxed text-textSecondarySurface">

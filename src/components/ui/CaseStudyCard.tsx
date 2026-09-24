@@ -14,8 +14,15 @@ export default function CaseStudyCard({
     isFirst?: boolean;
 }) {
     return (
+        // scroll={false}: on a soft navigation Next.js scrolls the new
+        // content into view. The case study opens as a `position: fixed`
+        // overlay, which Next skips, so it scrolled the next element in
+        // the page instead — its hidden route announcer at the very bottom —
+        // dragging the home page behind the overlay to its end (and back up
+        // on close). The overlay needs no scrolling, so turn it off here.
         <Link
             href={`/work/${slug}`}
+            scroll={false}
             className={`group flex h-auto w-full flex-col items-start gap-6 dashed dash-b bg-surface p-6 transition-opacity focus-visible:relative focus-visible:z-10 active:opacity-70 min-[600px]:h-[441px] ${
                 isFirst ? "dash-t" : ""
             }`}
