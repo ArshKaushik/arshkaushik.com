@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { identity, navLinks } from "@/lib/content";
+import { identity, navLinks, pageNavLinks } from "@/lib/content";
 import NavLink from "@/components/ui/NavLink";
 import MobileNavPill from "./MobileNavPill";
 
@@ -18,6 +18,9 @@ export default function Sidebar() {
     // conflict with at that width).
     const pathname = usePathname();
     const isCaseStudyRoute = pathname.startsWith("/work/");
+    // "Selected work" stays active for both the home page and any case-study
+    // detail page — /work/* is still part of that section, not a separate one.
+    const isAboutRoute = pathname.startsWith("/about");
 
     return (
         <>
@@ -55,6 +58,20 @@ export default function Sidebar() {
                         {identity.role}
                     </p>
                 </Link>
+
+                <nav className="flex items-start gap-4 min-[900px]:w-full min-[900px]:flex-col min-[900px]:gap-2">
+                    {pageNavLinks.map((link) => (
+                        <NavLink
+                            key={link.label}
+                            href={link.href}
+                            active={
+                                link.href === "/" ? !isAboutRoute : isAboutRoute
+                            }
+                        >
+                            {link.label}
+                        </NavLink>
+                    ))}
+                </nav>
 
                 <nav className="flex items-start gap-4 min-[900px]:w-full min-[900px]:flex-col min-[900px]:gap-2">
                     {navLinks.map((link) => (

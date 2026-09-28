@@ -1,7 +1,9 @@
 "use client";
 
 import { useId, useState } from "react";
+import { usePathname } from "next/navigation";
 import NavLink from "@/components/ui/NavLink";
+import { pageNavLinks } from "@/lib/content";
 
 // Below 600px (Figma frames 530:77557 collapsed / 530:79829 expanded, whose
 // design intent switches at 480px — but 600px is the real, arithmetic-forced
@@ -29,6 +31,8 @@ export default function MobileNavPill({
 }) {
     const [expanded, setExpanded] = useState(false);
     const panelId = useId();
+    const pathname = usePathname();
+    const isAboutRoute = pathname.startsWith("/about");
 
     return (
         <aside
@@ -118,8 +122,12 @@ export default function MobileNavPill({
                 sidesteps that.
 
                 collapsed = 24(p-6) + 40(row) + 0(gap) + 0(track) + 24(p-6)
-                = 88px; expanded = 24 + 40 + 20(gap) + 28(track, nav's own
-                content height) + 24 = 136px — matches Figma. */}
+                = 88px (unchanged — the track collapses to 0 regardless of how
+                much is inside it). expanded = 24 + 40 + 20(gap) + 64(track:
+                28 page-links row + 8 gap-2 + 28 external-links row) + 24 =
+                172px. Figma doesn't cover this expanded-with-both-rows state
+                (only the single-row version), so this total is derived, not
+                pulled from a matching frame — worth a visual check once built. */}
             <div
                 id={panelId}
                 // inert while collapsed: the 0fr track + overflow-hidden only
@@ -132,26 +140,45 @@ export default function MobileNavPill({
                     expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
                 }`}
             >
-                {/* justify-between (not just gap-4): Figma's expanded row
-                    (530:82096) spreads the 4 links across the FULL 282px
-                    width — the gaps between them measure a uniform ~39.67px
-                    (282 - 163px of link content, divided evenly across 3
-                    gaps), not a fixed 16px. gap-4 alone would leave the extra
-                    width unclaimed at the end instead of distributing it.
-                    Keeping gap-4 alongside justify-between isn't redundant:
-                    CSS treats `gap` as a MINIMUM spacing that space-between
-                    distributes ADDITIONAL room beyond, so it also acts as a
-                    floor as the container narrows toward the ~331px point
-                    where flex-wrap (below) kicks in.
-                    min-h-0: defensive — lets this shrink fully to the grid
-                    track's 0fr size with no residual floor of its own. */}
-                <nav className="flex w-full min-h-0 flex-wrap items-start justify-between gap-4 overflow-hidden">
-                    {navLinks.map((link) => (
-                        <NavLink key={link.label} href={link.href} target="_blank">
-                            {link.label}
-                        </NavLink>
-                    ))}
-                </nav>
+                {/* min-h-0 on this wrapper: defensive — lets it shrink fully
+                    to the grid track's 0fr size with no residual floor of its
+                    own. gap-2 between the two nav groups matches Figma's
+                    desktop middleLinks spacing (there's no expanded-mobile
+                    frame to confirm this exact value against). */}
+                <div className="flex min-h-0 w-full flex-col gap-2 overflow-hidden">
+                    <nav className="flex w-full flex-wrap items-start gap-4">
+                        {pageNavLinks.map((link) => (
+                            <NavLink
+                                key={link.label}
+                                href={link.href}
+                                active={
+                                    link.href === "/" ? !isAboutRoute : isAboutRoute
+                                }
+                            >
+                                {link.label}
+                            </NavLink>
+                        ))}
+                    </nav>
+
+                    {/* justify-between (not just gap-4): Figma's expanded row
+                        (530:82096) spreads the 4 links across the FULL 282px
+                        width — the gaps between them measure a uniform ~39.67px
+                        (282 - 163px of link content, divided evenly across 3
+                        gaps), not a fixed 16px. gap-4 alone would leave the extra
+                        width unclaimed at the end instead of distributing it.
+                        Keeping gap-4 alongside justify-between isn't redundant:
+                        CSS treats `gap` as a MINIMUM spacing that space-between
+                        distributes ADDITIONAL room beyond, so it also acts as a
+                        floor as the container narrows toward the ~331px point
+                        where flex-wrap (below) kicks in. */}
+                    <nav className="flex w-full flex-wrap items-start justify-between gap-4">
+                        {navLinks.map((link) => (
+                            <NavLink key={link.label} href={link.href} target="_blank">
+                                {link.label}
+                            </NavLink>
+                        ))}
+                    </nav>
+                </div>
             </div>
         </aside>
     );
