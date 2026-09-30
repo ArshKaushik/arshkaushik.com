@@ -1,4 +1,5 @@
 import { caseStudies, type CaseStudy } from "@/lib/case-studies";
+import { aboutHeading, aboutParagraphs } from "@/lib/about";
 import {
     education,
     experienceSummary,
@@ -195,6 +196,23 @@ export function caseStudySchema(study: CaseStudy) {
         ...(study.thumbnail ? { image: `${siteUrl}${study.thumbnail}` } : {}),
         ...(row ? { keywords: splitSkills(row.value) } : {}),
         author: personRef,
+        isPartOf: websiteRef,
+    };
+}
+
+/** The About page as an AboutPage. `mainEntity` is an @id REFERENCE to the
+ *  layout's Person: it says "this page is about that Person" without describing
+ *  him a second time. Only the opening paragraph goes in `description`; the full
+ *  text is already in the page's HTML and in /llms.txt. */
+export function aboutPageSchema() {
+    return {
+        "@context": "https://schema.org",
+        "@type": "AboutPage",
+        "@id": `${siteUrl}/about#page`,
+        url: `${siteUrl}/about`,
+        name: plain(aboutHeading),
+        description: plain(aboutParagraphs[0]),
+        mainEntity: personRef,
         isPartOf: websiteRef,
     };
 }

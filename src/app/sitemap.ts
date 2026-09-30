@@ -4,8 +4,9 @@ import { siteUrl } from "@/lib/content";
 
 // /sitemap.xml via Next's metadata file convention (same mechanism as
 // robots.ts: reserved filename, return the data, Next writes the XML) — the
-// home page plus the three case-study routes, sourced from the same caseStudies
-// module the pages render from, so a new study is included automatically.
+// home page, the three case-study routes (sourced from the same caseStudies
+// module the pages render from, so a new study is included automatically) and
+// the About page.
 //
 // changeFrequency and priority are HINTS ONLY. Google has said publicly it
 // largely ignores both; they cost nothing and are conventional, but nothing
@@ -31,5 +32,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
             changeFrequency: "monthly" as const,
             priority: 0.8,
         })),
+        {
+            url: `${siteUrl}/about`,
+            lastModified: new Date(),
+            changeFrequency: "yearly",
+            priority: 0.6,
+        },
     ];
 }

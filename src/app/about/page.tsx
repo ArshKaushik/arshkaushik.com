@@ -1,23 +1,51 @@
 import type { Metadata } from "next";
 import { identity } from "@/lib/content";
+import { aboutParagraphs } from "@/lib/about";
+import PageColumn from "@/components/layout/PageColumn";
+import AboutIntro from "@/components/sections/AboutIntro";
+import Footer from "@/components/sections/Footer";
+import JsonLd from "@/components/JsonLd";
+import { aboutPageSchema } from "@/lib/structured-data";
 
-// Placeholder — the real About page design hasn't been handed off yet. This
-// exists so the sidebar's new "About" link has somewhere to go instead of
-// 404ing; replace this whole file once that design ships.
+const title = `About | ${identity.name}`;
+// The page's own opening paragraph doubles as its search/share description.
+const description = aboutParagraphs[0];
+// Metadata merges shallowly: defining openGraph/twitter here replaces the
+// root's, including the share image app/opengraph-image.png supplies. So the
+// same card is named explicitly (alt matches opengraph-image.alt.txt).
+const shareImage = {
+    url: "/opengraph-image.png",
+    width: 1200,
+    height: 630,
+    alt: `${identity.name} — ${identity.role}`,
+};
+
 export const metadata: Metadata = {
-    title: `About | ${identity.name}`,
+    title,
+    description,
+    openGraph: {
+        title,
+        description,
+        url: "/about",
+        type: "profile",
+        images: [shareImage],
+    },
+    twitter: {
+        card: "summary_large_image",
+        title,
+        description,
+        images: [shareImage],
+    },
 };
 
 export default function AboutPage() {
     return (
-        <main
-            id="content"
-            className="flex min-h-screen w-full flex-col items-start gap-2 p-6"
-        >
-            <h1 className="font-serif text-[28px] text-textPrimary">About</h1>
-            <p className="text-[14px] text-textSecondaryPage">
-                More coming soon.
-            </p>
-        </main>
+        <>
+            <PageColumn>
+                <AboutIntro />
+                <Footer />
+            </PageColumn>
+            <JsonLd data={aboutPageSchema()} />
+        </>
     );
 }
