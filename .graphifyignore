@@ -1,0 +1,4 @@
+# Agent skill docs are tracked in git but aren't part of the site, so they're
+# kept out of the knowledge graph (gitignore syntax, read alongside .gitignore).
+/.agents/
+/.claude/
