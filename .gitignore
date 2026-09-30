@@ -43,13 +43,6 @@ next-env.d.ts
 # graphify tool output (machine-specific paths / caches; not project source)
 /graphify-out/
 
-# AI-agent tooling (machine-specific; not project source). /.claude in particular
-# holds git worktrees — whole second checkouts of this repo, ~800MB.
-/.claude/
-/.agents/
 /skills-lock.json
 
-# editor settings (machine-specific). The project-wide formatting rules that
-# actually matter — LF, spaces, indent 4 — live in .editorconfig instead, which
-# every editor can read rather than just this one.
 /.vscode/
