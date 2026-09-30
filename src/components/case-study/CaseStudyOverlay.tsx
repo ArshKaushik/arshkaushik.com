@@ -231,7 +231,7 @@ export default function CaseStudyOverlay({
             onClick={() => {
                 if (backdropPressRef.current) close();
             }}
-            className={`fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-page px-0 pt-10 pb-[140px] outline-none transition-opacity duration-[520ms] ease-spring-gentle motion-reduce:transition-none min-[600px]:pt-0 min-[900px]:bg-overlay/12 min-[900px]:px-2.5 min-[900px]:py-20 ${
+            className={`fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-page px-0 pt-10 pb-35 outline-none transition-opacity duration-520 ease-spring-gentle motion-reduce:transition-none min-[600px]:pt-0 min-[900px]:bg-overlay/12 min-[900px]:px-2.5 min-[900px]:py-20 ${
                 open ? "opacity-100" : "opacity-0"
             }`}
         >
@@ -263,7 +263,7 @@ export default function CaseStudyOverlay({
                 stopPropagation now lives on the inner wrapper below, which
                 shrink-wraps to the card's own real width. */}
             <div
-                className={`flex w-full justify-center transition-transform duration-[520ms] ease-spring-gentle motion-reduce:transition-none ${
+                className={`flex w-full justify-center transition-transform duration-520 ease-spring-gentle motion-reduce:transition-none ${
                     open ? "translate-y-0" : "translate-y-[100vh]"
                 }`}
             >

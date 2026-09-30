@@ -40,7 +40,7 @@ export default function MobileNavPill({
             // entrance the instant this pill's own <600px range starts
             // matching — i.e. whenever the 600-900px tablet pill above hands
             // off to this one.
-            className={`fixed bottom-10 left-1/2 z-40 flex w-[calc(100%-72px)] -translate-x-1/2 flex-col dashed dash-x dash-y bg-surface p-6 shadow-[0px_0px_16px_3px_rgba(17,17,17,0.06)] transition-[gap] duration-[520ms] ease-spring-gentle motion-reduce:transition-none slide-in-mobile-pill min-[600px]:hidden ${
+            className={`fixed bottom-10 left-1/2 z-40 flex w-[calc(100%-72px)] -translate-x-1/2 flex-col dashed dash-x dash-y bg-surface p-6 shadow-[0px_0px_16px_3px_rgba(17,17,17,0.06)] transition-[gap] duration-520 ease-spring-gentle motion-reduce:transition-none slide-in-mobile-pill min-[600px]:hidden ${
                 expanded ? "gap-5" : "gap-0"
             } ${hideBottomPill ? "!hidden" : ""}`}
         >
@@ -80,7 +80,7 @@ export default function MobileNavPill({
                         viewBox="0 0 24 24"
                         fill="none"
                         aria-hidden="true"
-                        className={`transition-transform duration-[520ms] ease-spring-gentle motion-reduce:transition-none ${
+                        className={`transition-transform duration-520 ease-spring-gentle motion-reduce:transition-none ${
                             expanded ? "rotate-180" : ""
                         }`}
                     >
@@ -136,7 +136,7 @@ export default function MobileNavPill({
                 // invisible stops. inert removes them from focus order and
                 // the accessibility tree until the panel is actually open.
                 inert={!expanded}
-                className={`grid w-full transition-[grid-template-rows] duration-[520ms] ease-spring-gentle motion-reduce:transition-none ${
+                className={`grid w-full transition-[grid-template-rows] duration-520 ease-spring-gentle motion-reduce:transition-none ${
                     expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
                 }`}
             >

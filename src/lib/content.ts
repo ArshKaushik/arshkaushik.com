@@ -49,8 +49,6 @@ export const navLinks: { label: string; href: string }[] = [
     { label: "Email", href: "mailto:arshkaushik21@gmail.com" },
 ];
 
-// Internal page switcher (Sidebar's middle section) — distinct from navLinks
-// above, which are all external and always open in a new tab.
 export const pageNavLinks: { label: string; href: string }[] = [
     { label: "Selected work", href: "/" },
     { label: "About", href: "/about" },

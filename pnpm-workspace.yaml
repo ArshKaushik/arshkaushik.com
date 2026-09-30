@@ -1,7 +1,7 @@
 allowBuilds:
-  core-js: true
-  sharp: true
-  unrs-resolver: true
+    core-js: true
+    sharp: true
+    unrs-resolver: true
 onlyBuiltDependencies:
-  - sharp
-  - unrs-resolver
+    - sharp
+    - unrs-resolver
