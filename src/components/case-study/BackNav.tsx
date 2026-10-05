@@ -27,7 +27,7 @@ type Props = (
 };
 
 export default function BackNav({ open, ...props }: Props) {
-    const pillClassName = `fixed bottom-10 left-1/2 z-50 flex w-[120px] -translate-x-1/2 items-center justify-center gap-2.5 dashed dash-x dash-y bg-surface p-6 shadow-[0px_0px_16px_3px_rgba(17,17,17,0.06)] min-[900px]:hidden ${
+    const pillClassName = `fixed bottom-5 left-1/2 z-50 flex w-[120px] -translate-x-1/2 items-center justify-center gap-2.5 dashed dash-x dash-y bg-surface p-6 shadow-[0px_0px_16px_4px_rgba(17,17,17,0.08)] min-[900px]:hidden ${
         open === undefined
             ? ""
             : `transition-transform duration-[520ms] ease-spring-gentle motion-reduce:transition-none ${
