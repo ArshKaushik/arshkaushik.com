@@ -5,6 +5,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import ClarityAnalytics from "@/components/Clarity";
 import { identity, heroTagline, siteUrl } from "@/lib/content";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import JsonLd from "@/components/JsonLd";
 import { siteGraph } from "@/lib/structured-data";
 
@@ -97,6 +98,7 @@ export default function RootLayout({
                     projectId={process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID}
                 />
                 <Analytics />
+                <SpeedInsights />
                 {/* schema.org Person + WebSite, in one @graph. Renders nothing.
                     Placed LAST in <body> deliberately: JSON-LD is valid anywhere
                     in the document, and putting it here keeps it well away from
