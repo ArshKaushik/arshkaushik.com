@@ -7,11 +7,13 @@ Two things happen when one meets this portfolio, and they need different work:
 Before this change the site served neither well: no structured data, no
 `llms.txt`, and a home page carrying 142 visible words.
 
-This document is in two halves:
+This document is in three parts:
 
 - **Part 1 — The plan**, exactly as approved before any code was written.
 - **Part 2 — What actually happened**, written after execution: what was built,
   how, why, and what the verification turned up.
+- **Part 3 — The About page lands**, a later follow-up: closes the items Parts 1–2
+  put off "until the About page", including the `worksFor` decision.
 
 ---
 
@@ -944,3 +946,80 @@ against him while his case studies argue for him.
 
 Per the audit above, the meta description is also the only realistic route for
 "enterprise" to reach a search index until `worksFor` exists. It isn't cosmetic polish.
+
+---
+
+# Part 3 — The About page lands (2026-09-30)
+
+Parts 1 and 2 put several things off "until the About page exists". It now exists
+(`/about`, copy in `src/lib/about.ts`), so this part records what was done about each
+one. **Where this part and the sections above disagree, this part is current.**
+
+## What shipped
+
+| Layer | Change |
+|---|---|
+| `/llms.txt` | New `## About` section right after the header bullets, before `## Selected work`: the heading plus all six paragraphs verbatim, ending with the `/about` URL (the same pattern as each case-study block). `## Links` now lists the site's own pages (`pageNavLinks`, as absolute URLs) above the external links. |
+| JSON-LD | New `aboutPageSchema()` in `structured-data.ts`, rendered only on `/about`: a schema.org `AboutPage` with `name` = the heading, `description` = the first paragraph, `mainEntity` → `PERSON_ID`, `isPartOf` → `WEBSITE_ID`. |
+| `<head>` | `/about` gets its own `description` (the first paragraph), plus `openGraph` (`type: "profile"`) and `twitter` blocks. |
+| `sitemap.xml` | `/about` added (`yearly`, priority `0.6`, below the case studies' `0.8`, because the work is what's being evaluated). |
+
+Nothing here is new copy. Every string comes from `lib/about.ts` or `content.ts`, so
+the machine-readable layer still can't drift from the page, the same principle as
+Part 2.
+
+## Decisions
+
+**`worksFor`: considered and declined.** Parts 1 and 2 put it off "to the future
+About page". Arsh decided to keep it out, and the About copy names no employer either.
+So the enterprise signal still rests on `llms.txt`'s `## Context` section and the
+case-study pages, exactly as "What this deliberately does NOT claim" describes. The
+comment above `## Context` in `llms.txt/route.ts` was updated to match. **This isn't
+missing data; don't add it without asking.**
+
+**No photo.** The About design has none, so there's no `Person.image`.
+
+**`mainEntity` is a reference, not a copy.** An `AboutPage` is literally "a page
+about something". Pointing `mainEntity` at `PERSON_ID` tells a crawler this is the
+Person's about page while keeping the Part 2 rule: the Person is defined exactly once
+per document, by the layout's `siteGraph()`.
+
+**Only the first paragraph goes into JSON-LD.** The full text is already in the
+page's HTML and in `llms.txt`. The division of labour from Part 2 holds: JSON-LD
+covers identity, `llms.txt` covers substance.
+
+**The About section sits early in `llms.txt`.** The brief now reads: who → how they
+think → the work → education → context → links. An evaluator reading top-down meets
+the "designer who does both" framing before the case studies that back it up.
+
+## Where reality corrected the plan
+
+**Page-level `openGraph` drops the inherited share image.** Next.js merges metadata
+**shallowly**: when a page defines `openGraph`, it *replaces* the root layout's
+`openGraph` object as a whole, and with it the image that `app/opengraph-image.png`
+supplies through the file convention. The first build of `/about` shipped
+`og:title`/`og:description` with **no `og:image` and no `twitter:image`**, so a shared
+link would have unfurled without a card. (The placeholder page never showed this
+because it only set `title`, so it inherited the root's whole `openGraph`: image
+included, but also the *home page's* `og:title`.)
+
+The fix is to name the same card explicitly in `about/page.tsx` (`shareImage`: the
+`/opengraph-image.png` URL, 1200×630, alt matching `opengraph-image.alt.txt`). The
+case-study routes don't have this problem because each has its own
+`opengraph-image.tsx`. **Any future page that sets `openGraph` needs the same line.**
+
+## Verification results
+
+| Check | Result |
+|---|---|
+| `pnpm build` | clean; `/about`, `/llms.txt`, `/sitemap.xml` all `○ (Static)` |
+| `pnpm lint` | zero warnings |
+| `/llms.txt` | `## About` present with 6/6 paragraphs and the `/about` URL; Links lists Selected work + About |
+| Size | `/llms.txt` 4.9 KB total, of which the About section is 1.6 KB. Still `force-static`, so no per-request cost |
+| `/sitemap.xml` | 5 URLs, including `/about` |
+| JSON-LD on `/about` | 2 blocks, both `JSON.parse` cleanly; **exactly 1** `Person` definition; `mainEntity` is a bare `@id` ref |
+| `<head>` on `/about` | description, `og:title`/`og:url`/`og:type=profile`, `og:image` + `twitter:image` (absolute URLs via `metadataBase`), `twitter:card` |
+| Visual | no layout change: JSON-LD and meta tags render nothing |
+
+**Outstanding (manual, as in Part 2):** paste the built `/about` source into
+validator.schema.org.

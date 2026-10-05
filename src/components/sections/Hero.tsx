@@ -1,15 +1,15 @@
 import { heroTagline, stats } from "@/lib/content";
 import Stat from "@/components/ui/Stat";
+import SurfaceCard from "@/components/ui/SurfaceCard";
+import DisplayHeading from "@/components/ui/DisplayHeading";
 
 export default function Hero() {
     return (
         <section className="flex w-full flex-col items-start">
 
-            <div className="flex w-full flex-col items-start dashed dash-t bg-surface p-6">
-                <h1 className="w-full font-serif text-[40px] leading-[normal] font-normal text-textPrimary min-[600px]:w-[548px]">
-                    {heroTagline}
-                </h1>
-            </div>
+            <SurfaceCard className="dash-t">
+                <DisplayHeading>{heroTagline}</DisplayHeading>
+            </SurfaceCard>
 
             <div className="flex w-full flex-col items-start dashed dash-y min-[600px]:flex-row">
                 {stats.map((stat, index) => (

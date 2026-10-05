@@ -14,4 +14,4 @@ Rules:
 
 ## Git
 
-- Whenever the user asks to push to origin (e.g. "push origin", "push to origin", "commit and push"), FIRST update `README.md` to reflect what's being pushed (project structure, notable features, learn docs, status) — then commit and push. Never push without bringing the README up to date in the same push.
+- Whenever the user asks to push to origin (e.g. "push origin", "push to origin", "commit and push"), FIRST update `README.md` to reflect what's being pushed (project structure, notable features, learn docs, status), THEN run `graphify update .` so the local knowledge graph matches the code being pushed — then commit and push. Never push without bringing the README up to date in the same push.

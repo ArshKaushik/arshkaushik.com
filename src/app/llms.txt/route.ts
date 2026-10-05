@@ -1,11 +1,13 @@
 import { caseStudies, type CaseStudy } from "@/lib/case-studies";
 import { companyContext } from "@/lib/case-studies/shared";
+import { aboutHeading, aboutParagraphs } from "@/lib/about";
 import {
     education,
     heroTagline,
     identity,
     location,
     navLinks,
+    pageNavLinks,
     professionalSince,
     siteUrl,
     stats,
@@ -80,6 +82,14 @@ function body(): string {
         out.push(`- ${stat.label}: ${stat.value}`);
     }
 
+    // The About page, verbatim: the first-person "why" behind the work, placed
+    // before the case studies so a reader meets the person first.
+    out.push("", "## About", "", `### ${aboutHeading}`, "");
+    for (const paragraph of aboutParagraphs) {
+        out.push(paragraph, "");
+    }
+    out.push(`${siteUrl}/about`);
+
     out.push("", "## Selected work", "");
     for (const study of caseStudies) {
         out.push(studyBlock(study));
@@ -93,14 +103,18 @@ function body(): string {
         out.push(`- ${e.degree}, ${e.field} — ${e.institution}, ${place}`);
     }
 
-    // Load-bearing, not decoration. Person.worksFor is deliberately deferred to a
-    // future About page, so this paragraph is the ONLY place a machine learns who
-    // the work was for and what domain it sits in — "an enterprise data-integrity
+    // Load-bearing, not decoration. Person.worksFor is deliberately left out of
+    // the JSON-LD (considered and declined when the About page landed), so this
+    // paragraph is the ONLY place a machine learns who the work was for and
+    // what domain it sits in — "an enterprise data-integrity
     // company… used by thousands of large enterprises". For any query about
     // *enterprise* experience, this is doing more work than any other line here.
     out.push("", "## Context", "", companyContext);
 
     out.push("", "## Links");
+    for (const link of pageNavLinks) {
+        out.push(`- ${link.label}: ${new URL(link.href, siteUrl).href}`);
+    }
     for (const link of navLinks) {
         out.push(`- ${link.label}: ${link.href.replace(/^mailto:/, "")}`);
     }

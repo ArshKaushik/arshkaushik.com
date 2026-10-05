@@ -82,7 +82,7 @@ export default function RootLayout({
                     focused; the pill styling only ever paints in that state. */}
                 <a
                     href="#content"
-                    className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] dashed dash-x dash-y bg-surface p-4 text-[14px] text-textPrimary shadow-[0px_0px_16px_3px_rgba(17,17,17,0.06)]"
+                    className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-100 dashed dash-x dash-y bg-surface p-4 text-[14px] text-textPrimary shadow-[0px_0px_16px_3px_rgba(17,17,17,0.06)]"
                 >
                     Skip to content
                 </a>

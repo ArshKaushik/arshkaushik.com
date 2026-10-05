@@ -49,6 +49,11 @@ export const navLinks: { label: string; href: string }[] = [
     { label: "Email", href: "mailto:arshkaushik21@gmail.com" },
 ];
 
+export const pageNavLinks: { label: string; href: string }[] = [
+    { label: "Selected work", href: "/" },
+    { label: "About", href: "/about" },
+];
+
 export const heroTagline =
     "Solving the problem behind the stated problem through design & engineering";
 
