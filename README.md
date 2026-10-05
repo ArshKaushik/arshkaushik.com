@@ -54,8 +54,8 @@ src/
 │                                  #   + per-study opengraph-image.tsx (generated og:images ×3)
 ├── components/
 │   ├── Clarity.tsx               #   Microsoft Clarity init (mounted once in layout.tsx)
-│   ├── layout/                   #   Sidebar (route-aware, Selected work / About switcher, desktop + 600-900px tablet pill),
-│   │                             #   MobileNavPill (<600px, collapsible), PageColumn (the centered 600px column every page sits in)
+│   ├── layout/                   #   Sidebar (≥900px column, Selected work / About switcher), BottomNavPill (<900px:
+│   │                             #   identity + current page + native dropdown), PageColumn (the centered 600px column every page sits in)
 │   ├── sections/                 #   Hero, CaseStudies, Footer, HomeContent (composes the three, reused by both routes above),
 │   │                             #   AboutIntro (the About page's heading, paragraphs and signature)
 │   ├── JsonLd.tsx                #   renders a JSON-LD <script>; the only <script> in the codebase
@@ -66,6 +66,7 @@ src/
 └── lib/
     ├── content.ts                # Page copy (identity, nav, hero) as data
     ├── about.ts                  # About page copy — heading + paragraphs, verbatim from Figma
+    ├── nav.ts                    # currentPageHref() — which page is active, shared by Sidebar + BottomNavPill
     ├── og-fonts.ts               # Build-time Google-Fonts fetch for the per-study og:images (satori cannot read next/font files)
     ├── structured-data.ts        # schema.org JSON-LD (Person / WebSite / CreativeWork), built from the content modules
     └── case-studies/             # Case-study content module — typed schema, one file per study
@@ -76,8 +77,10 @@ public/                           # Static assets — all of it referenced; noth
 ├── thumbnails/<study>.webp       #   Case-study thumbnails, 2208×1184 (home card + detail hero)
 ├── csAssets/<study>/             #   Per-point card illustrations, 1086×900 WebP (Figma PNG export, converted)
 │                                 #   (whatIDid-assetN.webp / impact-assetN.webp)
-└── about/signature.svg           #   The About page's signature (vector, exported from Figma)
-next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* -> PostHog US Cloud)
+├── about/signature.svg           #   The About page's signature (vector, exported from Figma)
+└── icons/expand-up-down-line.svg #   The bottom pill's dropdown icon (exported from Figma)
+next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* -> PostHog US Cloud); dev-only
+                                  #   allowedDevOrigins so a phone can load the dev server (see below)
 .agents/skills/                   # Project-level AI agent skills (animation/motion and UI guidance);
 .claude/skills/                   #   symlinked into .claude/ so Claude Code picks them up
 CLAUDE.md                         # Instructions for Claude Code in this repo (graphify, push checklist)
@@ -88,7 +91,8 @@ CLAUDE.md                         # Instructions for Claude Code in this repo (g
 ## Notable implementation details
 
 - **Content-driven** — page copy and case studies live in `src/lib/content.ts`, `src/lib/about.ts` and `src/lib/case-studies/` as typed data; components render from it, so adding a case study or link is a data edit, not a layout edit.
-- **About page** — `/about`, reached from the sidebar's Selected work / About switcher (the current page shows as active). It shares its building blocks with the home page (`PageColumn`, `SurfaceCard`, `DisplayHeading`, `Footer`), so the two pages can't drift apart visually. Desktop layout matches the Figma design; the mobile layout is next.
+- **About page** — `/about`, reached from the sidebar's Selected work / About switcher (the current page shows as active). It shares its building blocks with the home page (`PageColumn`, `SurfaceCard`, `DisplayHeading`, `Footer`), so the two pages can't drift apart visually. Desktop and mobile layouts both match the Figma design.
+- **Bottom nav pill with a native dropdown** — below 900px the sidebar becomes one pill: your name (links home) plus the current page with an up/down icon. Tapping that opens the OS's own picker (the system menu on iOS) listing every sidebar link. It's a transparent native `<select>` over the designed label, so it's accessible by default; external links open in a new tab, with a same-tab fallback if a pop-up blocker refuses.
 - **URL-addressable case-study modal** — clicking a "Selected work" card opens the study as an overlay with its own shareable URL (`/work/<slug>`), built with Next.js parallel + intercepting routes. Full walkthrough in [`learn/case-study-modal.md`](learn/case-study-modal.md), refresh/back-button behavior in [`learn/case-study-refresh-behavior.md`](learn/case-study-refresh-behavior.md).
 - **Case-study point cards** — "What I did" and "Impact" points can render as illustrated cards instead of plain text, opt-in per section.
 - **Design tokens** — colours and fonts are defined once in `globals.css` (`@theme`) and referenced everywhere.
@@ -110,8 +114,8 @@ Built and verified as three separate phases against Figma references at each wid
 | Width | What changes |
 |---|---|
 | **≥900px** | True desktop: fixed sidebar alongside a centered content column |
-| **600–900px** | Sidebar becomes an always-expanded bottom pill; content goes full-bleed |
-| **<600px** | Pill collapses to identity + an expandable chevron; case-study cards and the detail view switch to auto-height layouts |
+| **600–900px** | Sidebar becomes the bottom pill (identity + current page + native dropdown, max 520px wide); content goes full-bleed |
+| **<600px** | Same pill at screen width minus 72px (tightening below 368px so it never overflows); case-study cards and the detail view switch to auto-height layouts |
 
 ## Status
 
@@ -119,7 +123,9 @@ Built and verified as three separate phases against Figma references at each wid
 
 The particle sand reveal on the case-study card is merged to `main`.
 
-**In progress on `v1.4-particleScroll`:** the Selected work / About sidebar switcher and the About page (desktop done, mobile next), plus the About page's machine-readable layer. Not on `main` or the live site yet.
+**In progress on `v1.4-particleScroll`:** the Selected work / About sidebar switcher, the About page (desktop + mobile) and its machine-readable layer, and the redesigned bottom nav pill. Not on `main` or the live site yet.
+
+**Testing on a phone:** run `pnpm dev`, put the phone on the same Wi-Fi and open `http://Nimbus-3.local:3000` (the Mac's Bonjour name, allowed via `allowedDevOrigins` in `next.config.ts`).
 
 ## Learn docs
 
