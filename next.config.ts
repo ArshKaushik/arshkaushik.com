@@ -30,6 +30,10 @@ const nextConfig: NextConfig = {
     // slashes on some endpoints (e.g. /e/), which Next would otherwise redirect
     // away before the rewrite ever sees the request.
     skipTrailingSlashRedirect: true,
+    // Dev server only: lets a phone on the same network load the site at
+    // http://Nimbus-3.local:3000 (this Mac's Bonjour name, which survives IP
+    // changes) without Next 16 blocking its dev resources and live reload.
+    allowedDevOrigins: ["Nimbus-3.local"],
 };
 
 export default nextConfig;
