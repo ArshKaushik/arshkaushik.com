@@ -10,7 +10,7 @@ export const commandLine: CaseStudy = {
     meta: [
         {
             label: "Role",
-            value: "Lead designer & engineer — UX designer on version management, experience engineer on the agent health dashboard (designed and developed with agentic AI)",
+            value: "Lead designer & engineer — product designer on version management, experience engineer on the agent health dashboard (designed and developed with agentic AI)",
         },
         {
             label: "Teams",
