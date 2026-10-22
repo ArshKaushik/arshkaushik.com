@@ -9,7 +9,7 @@ Personal portfolio for **Arsh Kaushik**, implemented from a Figma design.
 - **Tailwind CSS v4**
 - **pnpm**
 - Fonts via `next/font`: **Instrument Serif** (display) + **Geist** (UI)
-- Analytics: **Microsoft Clarity** + **PostHog**
+- Analytics: **Microsoft Clarity** + **PostHog** (`posthog-js`, `2026-08-30` defaults snapshot) + **Vercel Web Analytics** and **Speed Insights**
 
 ## Getting started
 
@@ -81,8 +81,9 @@ public/                           # Static assets — all of it referenced; noth
 └── icons/expand-up-down-line.svg #   The bottom pill's dropdown icon (exported from Figma)
 next.config.ts                    # PostHog reverse-proxy rewrites (/ingest/* -> PostHog US Cloud); dev-only
                                   #   allowedDevOrigins so a phone can load the dev server (see below)
-.agents/skills/                   # Project-level AI agent skills (animation/motion and UI guidance);
+.agents/skills/                   # Project-level AI agent skills (animation/motion, UI guidance, portfolio review);
 .claude/skills/                   #   symlinked into .claude/ so Claude Code picks them up
+.grok/skills/                     #   pd-portfolio-review symlinked for Grok too
 CLAUDE.md                         # Instructions for Claude Code in this repo (graphify, push checklist)
 ```
 
@@ -121,9 +122,9 @@ Built and verified as three separate phases against Figma references at each wid
 
 **Live at [arshkaushik.com](https://arshkaushik.com)** — deployed on Vercel (DNS via Cloudflare), fully responsive across all three breakpoint tiers, with Clarity + PostHog analytics running in production.
 
-The particle sand reveal on the case-study card is merged to `main`.
+On `main`: the particle sand reveal, the Selected work / About sidebar switcher, the About page (desktop + mobile) and its machine-readable layer, the redesigned bottom nav pill, and Vercel Speed Insights.
 
-**In progress on `v1.4-particleScroll`:** the Selected work / About sidebar switcher, the About page (desktop + mobile) and its machine-readable layer, and the redesigned bottom nav pill. Not on `main` or the live site yet.
+**In progress on `v1.4.1-resumeRoute`:** a designed, on-site résumé route to replace the Google Drive PDF link (not started yet). Already on the branch: `posthog-js` updated to 1.438.13 with the `2026-08-30` defaults, the `pd-portfolio-review` agent skill, and "product designer" role wording in two case studies. Not on `main` or the live site yet.
 
 **Testing on a phone:** run `pnpm dev`, put the phone on the same Wi-Fi and open `http://Nimbus-3.local:3000` (the Mac's Bonjour name, allowed via `allowedDevOrigins` in `next.config.ts`).
 
