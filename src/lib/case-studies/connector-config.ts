@@ -10,7 +10,7 @@ export const connectorConfig: CaseStudy = {
     meta: [
         {
             label: "Role",
-            value: "Lead UX Designer",
+            value: "Lead Product Designer",
         },
         {
             label: "Team",
